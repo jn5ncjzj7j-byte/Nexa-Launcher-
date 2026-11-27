@@ -189,7 +189,7 @@ class MainActivity : Activity() {
         appsHeader.addView(appCount)
         root.addView(appsHeader)
 
-        appAdapter = AppAdapter(this) { app -> launchApp(app) }
+        appAdapter = AppAdapter(this, { app -> launchApp(app) }, { app -> showAppActions(app) })
         appList = RecyclerView(this).apply {
             layoutManager = GridLayoutManager(this@MainActivity, gridColumns())
             adapter = appAdapter
@@ -496,7 +496,8 @@ class MainActivity : Activity() {
 
 private class AppAdapter(
     private val context: Context,
-    private val onClick: (LauncherApp) -> Unit
+    private val onClick: (LauncherApp) -> Unit,
+    private val onLongClick: (LauncherApp) -> Unit
 ) : RecyclerView.Adapter<AppAdapter.AppHolder>() {
     private val items = ArrayList<LauncherApp>()
     private val iconCache = object : LruCache<String, Drawable.ConstantState>(96) {}
@@ -562,11 +563,7 @@ private class AppAdapter(
         holder.itemView.tag = app.packageName
         holder.itemView.setOnClickListener { onClick(app) }
         holder.itemView.setOnLongClickListener {
-            (context as? MainActivity)?.let { activity ->
-                activity.javaClass.getDeclaredMethod("showAppActions", LauncherApp::class.java)
-                    .apply { isAccessible = true }
-                    .invoke(activity, app)
-            }
+            onLongClick(app)
             true
         }
 
