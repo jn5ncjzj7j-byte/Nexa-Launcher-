@@ -7,6 +7,11 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Typeface
+import android.graphics.BitmapFactory
+import android.graphics.Color
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.LayerDrawable
 import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Build
@@ -61,6 +66,9 @@ class MainActivity : Activity() {
     private lateinit var clock: TextView
     private lateinit var date: TextView
     private lateinit var batteryLabel: TextView
+    private lateinit var launcherRoot: LinearLayout
+    private var selectedBackground = BACKGROUND
+    private var selectedAccent = ACCENT
     private var batteryReceiverRegistered = false
     private var packageReceiverRegistered = false
     private val batteryChangedReceiver = object : BroadcastReceiver() {
@@ -97,9 +105,9 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.statusBarColor = BACKGROUND
         window.navigationBarColor = BACKGROUND
-        val root = LinearLayout(this).apply {
+        launcherRoot = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(BACKGROUND)
+            setBackgroundColor(selectedBackground)
             setPadding(dp(20), dp(14), dp(20), dp(8))
         }
 
@@ -132,7 +140,7 @@ class MainActivity : Activity() {
 
         top.addView(brand, LinearLayout.LayoutParams(0, dp(44), 1f))
         top.addView(settings, LinearLayout.LayoutParams(dp(44), dp(44)))
-        root.addView(top)
+        launcherRoot.addView(top)
 
         val hero = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -173,7 +181,7 @@ class MainActivity : Activity() {
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply { topMargin = dp(5) })
-        root.addView(hero, LinearLayout.LayoutParams(
+        launcherRoot.addView(hero, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply {
@@ -194,14 +202,14 @@ class MainActivity : Activity() {
             background = roundedBackground(SURFACE_HIGH, 16)
             setPadding(dp(16), 0, dp(16), 0)
         }
-        root.addView(search, LinearLayout.LayoutParams(
+        launcherRoot.addView(search, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             dp(52)
         ).apply { bottomMargin = dp(20) })
 
-        root.addView(sectionHeader("Favorites", "Hold an app to manage it"))
+        launcherRoot.addView(sectionHeader("Favorites", "Hold an app to manage it"))
         favoriteContainer = horizontalStrip()
-        root.addView(favoriteContainer, LinearLayout.LayoutParams(
+        launcherRoot.addView(favoriteContainer, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             dp(48)
         ).apply {
@@ -209,9 +217,9 @@ class MainActivity : Activity() {
             bottomMargin = dp(18)
         })
 
-        root.addView(sectionHeader("Recently opened", ""))
+        launcherRoot.addView(sectionHeader("Recently opened", ""))
         recentContainer = horizontalStrip()
-        root.addView(recentContainer, LinearLayout.LayoutParams(
+        launcherRoot.addView(recentContainer, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             dp(48)
         ).apply {
@@ -233,7 +241,7 @@ class MainActivity : Activity() {
             setTextColor(MUTED)
         }
         appsHeader.addView(appCount)
-        root.addView(appsHeader)
+        launcherRoot.addView(appsHeader)
 
         val categoryScroll = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
@@ -244,7 +252,7 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
         }
         categoryScroll.addView(categoryTabs)
-        root.addView(categoryScroll, LinearLayout.LayoutParams(
+        launcherRoot.addView(categoryScroll, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             dp(42)
         ).apply { topMargin = dp(5) })
@@ -261,13 +269,14 @@ class MainActivity : Activity() {
             overScrollMode = View.OVER_SCROLL_NEVER
             isVerticalScrollBarEnabled = false
         }
-        root.addView(appList, LinearLayout.LayoutParams(
+        launcherRoot.addView(appList, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             0,
             1f
         ).apply { topMargin = dp(8) })
 
-        setContentView(root)
+        setContentView(launcherRoot)
+        applySavedAppearance()
         window.decorView.post { if (!isFinishing && !isDestroyed) hideSystemBars() }
 
         hero.animate()
@@ -430,7 +439,7 @@ class MainActivity : Activity() {
                 typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
                 setTextColor(if (selected) BACKGROUND else TEXT)
                 gravity = Gravity.CENTER
-                background = roundedBackground(if (selected) ACCENT else SURFACE_HIGH, 18)
+                background = roundedBackground(if (selected) selectedAccent else SURFACE_HIGH, 18)
                 setPadding(dp(15), 0, dp(15), 0)
                 isClickable = true
                 isFocusable = true
@@ -681,6 +690,7 @@ class MainActivity : Activity() {
 
     private fun showSettings() {
         val options = arrayOf(
+            "Customize appearance",
             "Android Settings",
             "Refresh apps",
             "Manage hidden apps",
@@ -691,17 +701,18 @@ class MainActivity : Activity() {
             .setTitle("NEXA settings")
             .setItems(options) { _, which ->
                 when (which) {
-                    0 -> openAndroidSettings()
-                    1 -> loadApps()
-                    2 -> showHiddenApps()
-                    3 -> {
+                    0 -> showAppearanceSettings()
+                    1 -> openAndroidSettings()
+                    2 -> loadApps()
+                    3 -> showHiddenApps()
+                    4 -> {
                         try {
                             startActivity(Intent(Settings.ACTION_HOME_SETTINGS))
                         } catch (_: Exception) {
                             showMessage("Open Android Settings and choose Default apps, then Home app.")
                         }
                     }
-                    4 -> AlertDialog.Builder(this)
+                    5 -> AlertDialog.Builder(this)
                         .setTitle("NEXA Launcher")
                         .setMessage("A lightweight Android home screen focused on speed, clarity, and control. Version 0.3.0")
                         .setPositiveButton("OK", null)
@@ -709,6 +720,134 @@ class MainActivity : Activity() {
                 }
             }
             .show()
+    }
+
+
+    private fun showAppearanceSettings() {
+        val options = arrayOf(
+            "Choose wallpaper",
+            "Background color",
+            "Accent color",
+            "Remove wallpaper"
+        )
+        AlertDialog.Builder(this)
+            .setTitle("Customize appearance")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> {
+                        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                            type = "image/*"
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+                        }
+                        try {
+                            startActivityForResult(intent, 4101)
+                        } catch (_: Exception) {
+                            showMessage("No image picker is available.")
+                        }
+                    }
+                    1 -> showColorChoices(
+                        "Background color",
+                        listOf(
+                            "Midnight" to 0xFF0D0F14.toInt(),
+                            "Deep purple" to 0xFF171126.toInt(),
+                            "Ocean" to 0xFF0B1722.toInt(),
+                            "Forest" to 0xFF0D1A16.toInt(),
+                            "Warm charcoal" to 0xFF211A18.toInt()
+                        )
+                    ) { color ->
+                        selectedBackground = color
+                        getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
+                            .putInt("background_color", color)
+                            .apply()
+                        applySavedAppearance()
+                    }
+                    2 -> showColorChoices(
+                        "Accent color",
+                        listOf(
+                            "Violet" to 0xFF9D8CFF.toInt(),
+                            "Cyan" to 0xFF54D6E8.toInt(),
+                            "Mint" to 0xFF65D6A4.toInt(),
+                            "Orange" to 0xFFFFAD66.toInt(),
+                            "Pink" to 0xFFFF82B2.toInt()
+                        )
+                    ) { color ->
+                        selectedAccent = color
+                        getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
+                            .putInt("accent_color", color)
+                            .apply()
+                        buildCategoryTabs()
+                    }
+                    3 -> {
+                        getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
+                            .remove("wallpaper_uri")
+                            .apply()
+                        applySavedAppearance()
+                    }
+                }
+            }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
+    private fun showColorChoices(title: String, colors: List<Pair<String, Int>>, onSelected: (Int) -> Unit) {
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setItems(colors.map { it.first }.toTypedArray()) { _, which ->
+                onSelected(colors[which].second)
+            }
+            .show()
+    }
+
+    private fun applySavedAppearance() {
+        val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+        selectedBackground = prefs.getInt("background_color", BACKGROUND)
+        selectedAccent = prefs.getInt("accent_color", ACCENT)
+        val uriText = prefs.getString("wallpaper_uri", null)
+        if (uriText.isNullOrBlank()) {
+            launcherRoot.setBackgroundColor(selectedBackground)
+            return
+        }
+        try {
+            val uri = Uri.parse(uriText)
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+            val maxDimension = 1600
+            var sample = 1
+            while (bounds.outWidth / sample > maxDimension || bounds.outHeight / sample > maxDimension) {
+                sample *= 2
+            }
+            val bitmap = BitmapFactory.Options().let {
+                it.inSampleSize = sample
+                contentResolver.openInputStream(uri)?.use { stream ->
+                    BitmapFactory.decodeStream(stream, null, it)
+                }
+            }
+            if (bitmap == null) {
+                launcherRoot.setBackgroundColor(selectedBackground)
+                return
+            }
+            val image = BitmapDrawable(resources, bitmap).apply { alpha = 82 }
+            launcherRoot.background = LayerDrawable(arrayOf(ColorDrawable(selectedBackground), image))
+        } catch (_: Exception) {
+            launcherRoot.setBackgroundColor(selectedBackground)
+        }
+    }
+
+    @Deprecated("Deprecated in Android")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != 4101 || resultCode != RESULT_OK) return
+        val uri = data?.data ?: return
+        try {
+            contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
+                .putString("wallpaper_uri", uri.toString())
+                .apply()
+            applySavedAppearance()
+        } catch (_: Exception) {
+            showMessage("Unable to use that image. Try choosing another picture.")
+        }
     }
 
     private fun showMessage(message: String) {
