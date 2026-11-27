@@ -105,6 +105,9 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.statusBarColor = BACKGROUND
         window.navigationBarColor = BACKGROUND
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.attributes = window.attributes.apply { preferredRefreshRate = 120f }
+        }
         launcherRoot = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(selectedBackground)
@@ -274,6 +277,9 @@ class MainActivity : Activity() {
             0,
             1f
         ).apply { topMargin = dp(8) })
+        appList.addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
+            updateGridColumns(view.width)
+        }
 
         setContentView(launcherRoot)
         applySavedAppearance()
@@ -895,8 +901,16 @@ class MainActivity : Activity() {
         (value * resources.displayMetrics.density).toInt()
 
     private fun gridColumns(): Int {
-        val width = resources.displayMetrics.widthPixels / resources.displayMetrics.density
-        return (width / 104f).toInt().coerceIn(3, 6)
+        val width = resources.displayMetrics.widthPixels - dp(40)
+        return (width / dp(112)).coerceIn(3, 7)
+    }
+
+    private fun updateGridColumns(widthPx: Int) {
+        if (widthPx <= 0 || !::appAdapter.isInitialized) return
+        val columns = (widthPx / dp(112)).coerceIn(3, 7)
+        val manager = appList.layoutManager as? GridLayoutManager ?: return
+        if (manager.spanCount != columns) manager.spanCount = columns
+        appAdapter.updateCellWidth(widthPx / columns)
     }
 }
 
@@ -910,6 +924,17 @@ private class AppAdapter(
     private val executor = Executors.newFixedThreadPool(2)
     private val handler = Handler(Looper.getMainLooper())
     private var animationGeneration = 0
+    private var cellWidthPx = context.dp(112)
+    private var iconSizePx = context.dp(48)
+
+    fun updateCellWidth(width: Int) {
+        val nextWidth = width.coerceAtLeast(context.dp(80))
+        val nextIconSize = (nextWidth * 0.52f).toInt().coerceIn(context.dp(44), context.dp(66))
+        if (cellWidthPx == nextWidth && iconSizePx == nextIconSize) return
+        cellWidthPx = nextWidth
+        iconSizePx = nextIconSize
+        notifyDataSetChanged()
+    }
 
     init {
         setHasStableIds(true)
@@ -944,7 +969,8 @@ private class AppAdapter(
         val root = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(context.dp(5), context.dp(10), context.dp(5), context.dp(8))
+            setPadding(context.dp(5), context.dp(9), context.dp(5), context.dp(8))
+            minimumHeight = (cellWidthPx * 0.88f).toInt()
             background = context.roundedBackground(SURFACE, 16)
             isClickable = true
             isFocusable = true
@@ -953,7 +979,7 @@ private class AppAdapter(
         val icon = ImageView(context).apply {
             scaleType = ImageView.ScaleType.FIT_CENTER
         }
-        root.addView(icon, LinearLayout.LayoutParams(context.dp(46), context.dp(46)))
+        root.addView(icon, LinearLayout.LayoutParams(iconSizePx, iconSizePx))
 
         val label = TextView(context).apply {
             textSize = 11f
@@ -973,6 +999,11 @@ private class AppAdapter(
     override fun onBindViewHolder(holder: AppHolder, position: Int) {
         val app = items[position]
         holder.label.text = app.label
+        holder.icon.layoutParams = holder.icon.layoutParams.apply {
+            width = iconSizePx
+            height = iconSizePx
+        }
+        holder.itemView.minimumHeight = (cellWidthPx * 0.88f).toInt()
         holder.icon.setImageDrawable(null)
         holder.itemView.tag = app.packageName
         holder.itemView.animate().cancel()
@@ -982,12 +1013,22 @@ private class AppAdapter(
             holder.animationGeneration = animationGeneration
             holder.itemView.alpha = 0f
             holder.itemView.translationY = context.dp(9).toFloat()
+            if (Build.VERSION.SDK_INT >= 31) {
+                holder.itemView.renderEffect = android.graphics.RenderEffect.createBlurEffect(
+                    2.2f,
+                    2.2f,
+                    android.graphics.Shader.TileMode.CLAMP
+                )
+            }
             holder.itemView.animate()
                 .alpha(1f)
                 .translationY(0f)
-                .setStartDelay(position * 22L)
-                .setDuration(220)
+                .setStartDelay(position * 18L)
+                .setDuration(250)
                 .setInterpolator(NEXA_EASE)
+                .withEndAction {
+                    if (Build.VERSION.SDK_INT >= 31) holder.itemView.renderEffect = null
+                }
                 .start()
         } else {
             holder.animationGeneration = animationGeneration
@@ -1031,6 +1072,7 @@ private class AppAdapter(
         holder.itemView.translationY = 0f
         holder.itemView.scaleX = 1f
         holder.itemView.scaleY = 1f
+        if (Build.VERSION.SDK_INT >= 31) holder.itemView.renderEffect = null
         holder.icon.setImageDrawable(null)
         super.onViewRecycled(holder)
     }
