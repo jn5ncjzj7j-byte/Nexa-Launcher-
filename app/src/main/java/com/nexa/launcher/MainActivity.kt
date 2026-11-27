@@ -1682,7 +1682,7 @@ class MainActivity : Activity() {
                     val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
                     val startAt = prefs.getInt("video_trim_start", 0)
                     val endAt = prefs.getInt("video_trim_end", 0)
-                    media.isLooping = prefs.getBoolean("video_loop", true) && endAt <= startAt
+                    media.isLooping = false
                     media.setVolume(0f, 0f)
                     val rotationAngle = prefs.getInt("video_rotation", 0).toFloat()
                     rotation = rotationAngle
@@ -1718,16 +1718,18 @@ class MainActivity : Activity() {
                     val loopPrefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
                     val loopEnabled = loopPrefs.getBoolean("video_loop", true)
                     val loopStart = loopPrefs.getInt("video_trim_start", 0)
-                    val loopEnd = loopPrefs.getInt("video_trim_end", 0)
-                    if (loopEnabled && loopEnd > loopStart) {
+                    if (loopEnabled && activityResumed && videoWallpaper === this@apply) {
+                        pause()
                         seekTo(loopStart)
                         postDelayed({
                             if (videoWallpaper === this@apply && activityResumed && !isFinishing && !isDestroyed) {
                                 start()
                                 mainHandler.removeCallbacks(videoTrimTick)
-                                mainHandler.postDelayed(videoTrimTick, 100)
+                                if (loopPrefs.getInt("video_trim_end", 0) > loopStart) {
+                                    mainHandler.postDelayed(videoTrimTick, 100)
+                                }
                             }
-                        }, 180)
+                        }, 300)
                     }
                 }
             }
