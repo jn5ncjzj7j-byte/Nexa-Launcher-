@@ -2,11 +2,14 @@ package com.nexa.launcher
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -60,6 +63,15 @@ class MainActivity : Activity() {
     private val categories = listOf("All Apps", "Games", "Movies & TV", "Music", "Tools")
     private val worker = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val packageRemovedReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == Intent.ACTION_PACKAGE_REMOVED &&
+                !intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)
+            ) {
+                loadApps()
+            }
+        }
+    }
     private val clockTick = object : Runnable {
         override fun run() {
             if (::clock.isInitialized) {
@@ -247,6 +259,16 @@ class MainActivity : Activity() {
             } else false
         }
 
+        val packageFilter = IntentFilter(Intent.ACTION_PACKAGE_REMOVED).apply {
+            addDataScheme("package")
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(packageRemovedReceiver, packageFilter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("DEPRECATION")
+            registerReceiver(packageRemovedReceiver, packageFilter)
+        }
+
         clockTick.run()
         loadApps()
     }
@@ -269,6 +291,7 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         mainHandler.removeCallbacksAndMessages(null)
+        unregisterReceiver(packageRemovedReceiver)
         worker.shutdownNow()
         super.onDestroy()
     }
