@@ -885,6 +885,7 @@ class MainActivity : Activity() {
     }
 
     private fun buildCategoryTabs() {
+        selectedAccent = getSharedPreferences("nexa_launcher", MODE_PRIVATE).getInt("accent_color", ACCENT)
         categoryTabs.removeAllViews()
         (builtInCategories + getCustomCategories()).forEach { category ->
             val selected = category == currentCategory
@@ -948,12 +949,7 @@ class MainActivity : Activity() {
             tab.setTextColor(targetTextColor)
             if (animate && tab.isLaidOut) {
                 val startColor = (tab.background as? android.graphics.drawable.GradientDrawable)
-                    ?.let { drawable ->
-                        val state = drawable.constantState?.newDrawable()?.mutate()
-                        val bitmap = android.graphics.drawable.DrawableCompat.wrap(state ?: drawable)
-                        val color = if (selected) SURFACE_HIGH else selectedAccent
-                        color
-                    } ?: targetColor
+                    ?.color?.defaultColor ?: targetColor
                 val animator = android.animation.ValueAnimator.ofArgb(startColor, targetColor)
                 animator.duration = 170L
                 animator.interpolator = NEXA_EASE
