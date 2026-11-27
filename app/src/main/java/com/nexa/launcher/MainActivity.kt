@@ -841,13 +841,13 @@ class MainActivity : Activity() {
 
     private fun systemUsesFahrenheit(): Boolean {
         val locales = mutableListOf<Locale>()
+        locales.add(Locale.getDefault(Locale.Category.FORMAT))
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             val configured = resources.configuration.locales
             for (index in 0 until configured.size()) {
                 locales.add(configured[index])
             }
         }
-        locales.add(Locale.getDefault(Locale.Category.FORMAT))
         locales.add(Locale.getDefault())
         for (locale in locales.distinct()) {
             when (locale.getUnicodeLocaleType("mu")?.lowercase(Locale.ROOT)) {
