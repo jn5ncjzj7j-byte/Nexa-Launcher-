@@ -147,6 +147,8 @@ class MainActivity : Activity() {
             "Hidden apps" to "แอปที่ซ่อน",
             "Close" to "ปิด",
             "Remove from favorites" to "นำออกจากรายการโปรด",
+            "Change favorite button color" to "เปลี่ยนสีปุ่มรายการโปรด",
+            "Reset favorite button color" to "รีเซ็ตสีปุ่มรายการโปรด",
             "Add to favorites" to "เพิ่มในรายการโปรด",
             "App info" to "ข้อมูลแอป",
             "Uninstall" to "ถอนการติดตั้ง",
@@ -755,7 +757,7 @@ class MainActivity : Activity() {
     }
 
     private fun renderQuickSections() {
-        renderAppStrip(favoriteContainer, getFavorites(), "Pin apps here")
+        renderAppStrip(favoriteContainer, getFavorites(), "Pin apps here", true)
         val recent = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
             .getString("recent_apps", "")
             .orEmpty()
@@ -766,7 +768,7 @@ class MainActivity : Activity() {
         renderAppStrip(recentContainer, recent, "Your recent apps appear here")
     }
 
-    private fun renderAppStrip(container: LinearLayout, apps: List<LauncherApp>, emptyText: String) {
+    private fun renderAppStrip(container: LinearLayout, apps: List<LauncherApp>, emptyText: String, favoriteMode: Boolean = false) {
         container.removeAllViews()
         if (apps.isEmpty()) {
             container.addView(TextView(this).apply {
@@ -784,14 +786,14 @@ class MainActivity : Activity() {
                 setTextColor(TEXT)
                 maxLines = 1
                 gravity = Gravity.CENTER
-                background = roundedBackground(SURFACE_HIGH, 14)
+                background = roundedBackground(if (favoriteMode) getSharedPreferences("nexa_launcher", MODE_PRIVATE).getInt("favorite_color_" + app.packageName, SURFACE_HIGH) else SURFACE_HIGH, 14)
                 setPadding(dp(15), 0, dp(15), 0)
                 isClickable = true
                 isFocusable = true
                 setOnClickListener { launchApp(app) }
                 setSmoothPressFeedback()
                 setOnLongClickListener {
-                    showAppActions(app)
+                    if (favoriteMode) showFavoriteActions(app) else showAppActions(app)
                     true
                 }
             }
@@ -886,6 +888,32 @@ class MainActivity : Activity() {
             launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             startActivity(launchIntent)
         }
+    }
+
+    private fun showFavoriteActions(app: LauncherApp) {
+        val options = arrayOf(
+            localized("Change favorite button color"),
+            localized("Reset favorite button color"),
+            localized("Remove from favorites")
+        )
+        AlertDialog.Builder(this)
+            .setTitle(app.label)
+            .setItems(options) { _, which ->
+                val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+                val key = "favorite_color_" + app.packageName
+                when (which) {
+                    0 -> showCustomColor("Change favorite button color", prefs.getInt(key, SURFACE_HIGH)) { color ->
+                        prefs.edit().putInt(key, color).apply()
+                        renderQuickSections()
+                    }
+                    1 -> {
+                        prefs.edit().remove(key).apply()
+                        renderQuickSections()
+                    }
+                    2 -> toggleFavorite(app)
+                }
+            }
+            .show()
     }
 
     private fun showAppActions(app: LauncherApp) {
