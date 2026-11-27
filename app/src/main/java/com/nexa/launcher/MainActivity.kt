@@ -818,6 +818,7 @@ class MainActivity : Activity() {
         val index = when (position) {
             1 -> 1
             2 -> 2
+            0 -> if (resources.configuration.screenWidthDp >= 600) 2 else hero.childCount
             else -> hero.childCount
         }.coerceIn(0, hero.childCount)
         hero.addView(weatherRow, index)
@@ -887,7 +888,7 @@ class MainActivity : Activity() {
                             weatherRequestRunning = false
                             outsideTempLabel.text = localized("Outside · location unavailable")
                         }
-                    }, 15000)
+                    }, 35000)
                 }
             }
         } catch (_: SecurityException) {
