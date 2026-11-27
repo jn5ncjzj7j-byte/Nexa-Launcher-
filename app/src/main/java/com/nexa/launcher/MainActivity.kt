@@ -892,14 +892,105 @@ class MainActivity : Activity() {
     }
 
     private fun showAppearanceSettings() {
+        val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(8), dp(18), dp(4))
+        }
+        val preview = FrameLayout(this).apply {
+            background = roundedBackground(prefs.getInt("background_color", BACKGROUND), 18)
+            clipToOutline = true
+        }
+        val previewImage = ImageView(this).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+        }
+        preview.addView(previewImage, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        ))
+        val previewOverlay = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(13), dp(11), dp(13), dp(10))
+        }
+        previewOverlay.addView(TextView(this).apply {
+            text = "NEXA"
+            textSize = 15f
+            typeface = Typeface.create("sans-serif", Typeface.BOLD)
+            setTextColor(TEXT)
+        })
+        previewOverlay.addView(TextView(this).apply {
+            text = "9:41"
+            textSize = 27f
+            setTextColor(TEXT)
+            setPadding(0, dp(10), 0, dp(4))
+        })
+        previewOverlay.addView(TextView(this).apply {
+            text = "Your apps  ·  Games  ·  Tools"
+            textSize = 10f
+            setTextColor(TEXT)
+            background = roundedBackground(prefs.getInt("accent_color", ACCENT), 10)
+            setPadding(dp(8), dp(6), dp(8), dp(6))
+        })
+        preview.addView(previewOverlay, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        ))
+        panel.addView(preview, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            dp(170)
+        ).apply { bottomMargin = dp(12) })
+
+        fun refreshPreview() {
+            val current = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+            val backgroundColor = current.getInt("background_color", BACKGROUND)
+            preview.setBackgroundColor(backgroundColor)
+            val videoText = current.getString("video_wallpaper_uri", null)
+            val photoText = current.getString("wallpaper_uri", null)
+            val bitmap = try {
+                when {
+                    !videoText.isNullOrBlank() -> {
+                        val retriever = MediaMetadataRetriever()
+                        try {
+                            retriever.setDataSource(this, Uri.parse(videoText))
+                            retriever.getFrameAtTime(0)
+                        } finally {
+                            retriever.release()
+                        }
+                    }
+                    !photoText.isNullOrBlank() -> {
+                        contentResolver.openInputStream(Uri.parse(photoText))?.use {
+                            BitmapFactory.decodeStream(it)
+                        }
+                    }
+                    else -> null
+                }
+            } catch (_: Exception) {
+                null
+            }
+            previewImage.setImageBitmap(bitmap)
+            previewImage.alpha = current.getInt("wallpaper_alpha", 190) / 255f
+            val rotation = current.getInt("video_rotation", 0).toFloat()
+            previewImage.rotation = if (!videoText.isNullOrBlank()) rotation else 0f
+            val autoFit = current.getBoolean("video_auto_fit", true)
+            val positionX = current.getInt("video_position_x", 0)
+            val positionY = current.getInt("video_position_y", 0)
+            previewImage.scaleX = if (autoFit) 1.2f else 1f
+            previewImage.scaleY = if (autoFit) 1.2f else 1f
+            previewImage.translationX = positionX * dp(1).toFloat()
+            previewImage.translationY = positionY * dp(1).toFloat()
+            previewOverlay.getChildAt(2).background = roundedBackground(
+                current.getInt("accent_color", ACCENT), 10
+            )
+        }
+
         val options = arrayOf(
             "Choose photo wallpaper",
-            "Choose video wallpaper (common video formats)",
+            "Choose video wallpaper",
             "Trim video start and end",
             "Video loop mode",
             "Video position",
             "Video rotation",
-            "Auto fit video to screen",
+            "Video size and screen fit",
             "Crop and position photo",
             "Background color",
             "Accent color",
@@ -908,43 +999,37 @@ class MainActivity : Activity() {
             "Custom accent color",
             "Remove wallpaper"
         )
-        AlertDialog.Builder(this)
-            .setTitle("Customize appearance")
-            .setItems(options) { _, which ->
-                when (which) {
-                    0 -> {
-                        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                            addCategory(Intent.CATEGORY_OPENABLE)
-                            type = "image/*"
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        options.forEachIndexed { index, title ->
+            val row = TextView(this).apply {
+                text = title
+                textSize = 14f
+                setTextColor(TEXT)
+                gravity = Gravity.CENTER_VERTICAL
+                background = roundedBackground(SURFACE, 12)
+                setPadding(dp(14), dp(12), dp(14), dp(12))
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    when (index) {
+                        0, 1 -> {
+                            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                                addCategory(Intent.CATEGORY_OPENABLE)
+                                type = if (index == 0) "image/*" else "video/*"
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+                            }
+                            try {
+                                startActivityForResult(intent, if (index == 0) 4101 else 4102)
+                            } catch (_: Exception) {
+                                showMessage("No media picker is available.")
+                            }
                         }
-                        try {
-                            startActivityForResult(intent, 4101)
-                        } catch (_: Exception) {
-                            showMessage("No image picker is available.")
-                        }
-                    }
-                    1 -> {
-                        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                            addCategory(Intent.CATEGORY_OPENABLE)
-                            type = "video/*"
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
-                        }
-                        try {
-                            startActivityForResult(intent, 4102)
-                        } catch (_: Exception) {
-                            showMessage("No video picker is available.")
-                        }
-                    }
-                    2 -> showVideoTrimEditor()
-                    3 -> showVideoLoopOptions()
-                    4 -> showVideoPositionOptions()
-                    5 -> showVideoRotationOptions()
-                    6 -> showVideoAutoFitOptions()
-                    7 -> showPhotoCropOptions()
-                    8 -> showColorChoices(
-                        "Background color",
-                        listOf(
+                        2 -> showVideoTrimEditor()
+                        3 -> showVideoLoopOptions()
+                        4 -> showVideoPositionOptions()
+                        5 -> showVideoRotationOptions()
+                        6 -> showVideoAutoFitOptions()
+                        7 -> showPhotoCropOptions()
+                        8 -> showColorChoices("Background color", listOf(
                             "Midnight" to 0xFF0D0F14.toInt(),
                             "Deep purple" to 0xFF171126.toInt(),
                             "Ocean" to 0xFF0B1722.toInt(),
@@ -957,17 +1042,13 @@ class MainActivity : Activity() {
                             "Emerald" to 0xFF102820.toInt(),
                             "Sunset" to 0xFF302016.toInt(),
                             "Navy" to 0xFF101B35.toInt()
-                        )
-                    ) { color ->
-                        selectedBackground = color
-                        getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
-                            .putInt("background_color", color)
-                            .apply()
-                        applySavedAppearance()
-                    }
-                    9 -> showColorChoices(
-                        "Accent color",
-                        listOf(
+                        )) { color ->
+                            selectedBackground = color
+                            prefs.edit().putInt("background_color", color).apply()
+                            applySavedAppearance()
+                            refreshPreview()
+                        }
+                        9 -> showColorChoices("Accent color", listOf(
                             "Violet" to 0xFF9D8CFF.toInt(),
                             "Cyan" to 0xFF54D6E8.toInt(),
                             "Mint" to 0xFF65D6A4.toInt(),
@@ -980,47 +1061,53 @@ class MainActivity : Activity() {
                             "Teal" to 0xFF42D6C5.toInt(),
                             "Lavender" to 0xFFC5A3FF.toInt(),
                             "White" to 0xFFE8ECF5.toInt()
-                        )
-                    ) { color ->
-                        selectedAccent = color
-                        getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
-                            .putInt("accent_color", color)
-                            .apply()
-                        buildCategoryTabs()
-                    }
-                    10 -> showColorChoices(
-                        "Wallpaper visibility",
-                        listOf("Subtle" to 45, "Balanced" to 82, "Vivid" to 135, "Strong" to 190)
-                            .map { it.first to it.second }
-                    ) { alpha ->
-                        getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
-                            .putInt("wallpaper_alpha", alpha)
-                            .apply()
-                        applySavedAppearance()
-                    }
-                    11 -> showCustomColor("Custom background color", selectedBackground) { color ->
-                        selectedBackground = color
-                        getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
-                            .putInt("background_color", color)
-                            .apply()
-                        applySavedAppearance()
-                    }
-                    12 -> showCustomColor("Custom accent color", selectedAccent) { color ->
-                        selectedAccent = color
-                        getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
-                            .putInt("accent_color", color)
-                            .apply()
-                        buildCategoryTabs()
-                    }
-                    13 -> {
-                        getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
-                            .remove("wallpaper_uri")
-                            .remove("video_wallpaper_uri")
-                            .apply()
-                        applySavedAppearance()
+                        )) { color ->
+                            selectedAccent = color
+                            prefs.edit().putInt("accent_color", color).apply()
+                            buildCategoryTabs()
+                            refreshPreview()
+                        }
+                        10 -> showColorChoices("Wallpaper visibility", listOf(
+                            "Subtle" to 45, "Balanced" to 82, "Vivid" to 135, "Strong" to 190
+                        )) { alpha ->
+                            prefs.edit().putInt("wallpaper_alpha", alpha).apply()
+                            applySavedAppearance()
+                            refreshPreview()
+                        }
+                        11 -> showCustomColor("Custom background color", selectedBackground) { color ->
+                            selectedBackground = color
+                            prefs.edit().putInt("background_color", color).apply()
+                            applySavedAppearance()
+                            refreshPreview()
+                        }
+                        12 -> showCustomColor("Custom accent color", selectedAccent) { color ->
+                            selectedAccent = color
+                            prefs.edit().putInt("accent_color", color).apply()
+                            buildCategoryTabs()
+                            refreshPreview()
+                        }
+                        13 -> {
+                            prefs.edit().remove("wallpaper_uri").remove("video_wallpaper_uri").apply()
+                            applySavedAppearance()
+                            refreshPreview()
+                        }
                     }
                 }
+                setSmoothPressFeedback()
             }
+            panel.addView(row, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(46)
+            ).apply { bottomMargin = dp(6) })
+        }
+        refreshPreview()
+        val scroll = ScrollView(this).apply {
+            isFillViewport = false
+            addView(panel)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Appearance Studio")
+            .setView(scroll)
             .setNegativeButton("Close", null)
             .show()
     }
