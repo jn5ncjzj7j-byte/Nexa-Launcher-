@@ -71,6 +71,7 @@ class MainActivity : Activity() {
     private lateinit var clock: TextView
     private lateinit var date: TextView
     private lateinit var batteryLabel: TextView
+    private lateinit var batteryIcon: BatteryIconView
     private lateinit var launcherRoot: LinearLayout
     private lateinit var screenRoot: FrameLayout
     private var videoWallpaper: VideoView? = null
@@ -403,17 +404,27 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
         }
         heroInfo.addView(date, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        val batteryBadge = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            background = roundedBackground(SURFACE_HIGH, 14)
+            setPadding(dp(13), dp(9), dp(14), dp(9))
+        }
+        batteryIcon = BatteryIconView(this)
+        val batterySize = getSharedPreferences("nexa_launcher", MODE_PRIVATE).getInt("battery_size", 30)
+        batteryBadge.addView(batteryIcon, LinearLayout.LayoutParams(dp(batterySize + 4), dp((batterySize * 0.62f).toInt().coerceAtLeast(18))).apply {
+            rightMargin = dp(9)
+        })
         batteryLabel = TextView(this).apply {
             text = localized("Battery --%")
-            textSize = 15f
+            textSize = 16f
             typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
-            setTextColor(MUTED)
+            setTextColor(TEXT)
             gravity = Gravity.CENTER
-            background = roundedBackground(SURFACE_HIGH, 14)
-            setPadding(dp(14), dp(9), dp(14), dp(9))
-            minHeight = dp(42)
+            includeFontPadding = false
         }
-        heroInfo.addView(batteryLabel)
+        batteryBadge.addView(batteryLabel)
+        heroInfo.addView(batteryBadge)
         hero.addView(heroInfo, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
@@ -590,14 +601,16 @@ class MainActivity : Activity() {
     }
 
     private fun updateBatteryStatus(intent: Intent?) {
-        if (!::batteryLabel.isInitialized) return
+        if (!::batteryLabel.isInitialized || !::batteryIcon.isInitialized) return
         val level = intent?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) ?: -1
         val scale = intent?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1) ?: -1
         if (level < 0 || scale <= 0) {
-            batteryLabel.text = localized("Battery --%")
+            batteryLabel.text = "--%"
+            batteryIcon.level = 0
+            batteryIcon.invalidate()
             return
         }
-        val percent = (level * 100f / scale).toInt()
+        val percent = (level * 100f / scale).toInt().coerceIn(0, 100)
         val status = intent?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
         val charging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING ||
             status == android.os.BatteryManager.BATTERY_STATUS_FULL
@@ -608,12 +621,117 @@ class MainActivity : Activity() {
             if (low) "battery_low_color" else "battery_normal_color",
             if (low) 0xFFFF5964.toInt() else 0xFF69D9A5.toInt()
         )
-        batteryLabel.text = if (charging) "⚡ $percent%" else "● $percent%"
+        batteryIcon.level = percent
+        batteryIcon.batteryColor = color
+        batteryIcon.charging = charging
+        batteryIcon.invalidate()
+        batteryLabel.text = "$percent%"
         batteryLabel.setTextColor(color)
-        batteryLabel.background = roundedBackground(
-            Color.argb(38, Color.red(color), Color.green(color), Color.blue(color)),
-            14
-        )
+    }
+
+    private fun showBatterySettings() {
+        val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(12), dp(20), dp(8))
+        }
+        val sizeLabel = TextView(this).apply {
+            text = localized("Battery icon size")
+            textSize = 13f
+            setTextColor(TEXT)
+        }
+        panel.addView(sizeLabel)
+        val sizeValue = TextView(this).apply {
+            text = "${prefs.getInt("battery_size", 30)}"
+            textSize = 12f
+            setTextColor(MUTED)
+        }
+        panel.addView(sizeValue)
+        val sizeSeek = SeekBar(this).apply {
+            max = 30
+            progress = (prefs.getInt("battery_size", 30) - 20).coerceIn(0, 30)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    sizeValue.text = (progress + 20).toString()
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+        }
+        panel.addView(sizeSeek)
+        val thresholdLabel = TextView(this).apply {
+            text = localized("Low battery warning threshold")
+            textSize = 13f
+            setTextColor(TEXT)
+        }
+        panel.addView(thresholdLabel)
+        val thresholdValue = TextView(this).apply {
+            text = "${prefs.getInt("battery_low_threshold", 20)}%"
+            textSize = 12f
+            setTextColor(MUTED)
+        }
+        panel.addView(thresholdValue)
+        val thresholdSeek = SeekBar(this).apply {
+            max = 45
+            progress = prefs.getInt("battery_low_threshold", 20).coerceIn(5, 50) - 5
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    thresholdValue.text = "${progress + 5}%"
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+        }
+        panel.addView(thresholdSeek)
+        val normalColor = TextView(this).apply {
+            text = localized("Battery color")
+            textSize = 14f
+            setTextColor(TEXT)
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            background = roundedBackground(SURFACE, 12)
+            setOnClickListener {
+                showCustomColor("Battery color", prefs.getInt("battery_normal_color", 0xFF69D9A5.toInt())) { color ->
+                    prefs.edit().putInt("battery_normal_color", color).apply()
+                    updateBatteryStatus(registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)))
+                }
+            }
+        }
+        panel.addView(normalColor, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(12) })
+        val lowColor = TextView(this).apply {
+            text = localized("Low battery color")
+            textSize = 14f
+            setTextColor(TEXT)
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            background = roundedBackground(SURFACE, 12)
+            setOnClickListener {
+                showCustomColor("Low battery color", prefs.getInt("battery_low_color", 0xFFFF5964.toInt())) { color ->
+                    prefs.edit().putInt("battery_low_color", color).apply()
+                    updateBatteryStatus(registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)))
+                }
+            }
+        }
+        panel.addView(lowColor, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(8) })
+        AlertDialog.Builder(this)
+            .setTitle(localized("Battery indicator"))
+            .setView(panel)
+            .setPositiveButton(localized("Apply")) { _, _ ->
+                prefs.edit()
+                    .putInt("battery_size", sizeSeek.progress + 20)
+                    .putInt("battery_low_threshold", thresholdSeek.progress + 5)
+                    .apply()
+                if (::batteryIcon.isInitialized) {
+                    val size = sizeSeek.progress + 20
+                    batteryIcon.layoutParams = batteryIcon.layoutParams.apply {
+                        width = dp(size + 4)
+                        height = dp((size * 0.62f).toInt().coerceAtLeast(18))
+                    }
+                    updateBatteryStatus(registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)))
+                }
+            }
+            .setNegativeButton(localized("Cancel"), null)
+            .show()
     }
 
     @Suppress("DEPRECATION")
@@ -2225,6 +2343,54 @@ class MainActivity : Activity() {
         val manager = appList.layoutManager as? GridLayoutManager ?: return
         if (manager.spanCount != columns) manager.spanCount = columns
         appAdapter.updateCellWidth(widthPx / columns)
+    }
+}
+
+private class BatteryIconView(context: Context) : View(context) {
+    var level = 100
+    var batteryColor = Color.WHITE
+    var charging = false
+    private val bodyPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        style = android.graphics.Paint.Style.STROKE
+        strokeWidth = context.dp(2).toFloat()
+        color = Color.argb(220, 255, 255, 255)
+    }
+    private val fillPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+    private val boltPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        style = android.graphics.Paint.Style.FILL
+    }
+
+    override fun onDraw(canvas: android.graphics.Canvas) {
+        super.onDraw(canvas)
+        val inset = context.dp(2).toFloat()
+        val terminalWidth = context.dp(3).toFloat()
+        val right = width - terminalWidth - inset
+        val rect = android.graphics.RectF(inset, inset, right, height - inset)
+        val inner = context.dp(3).toFloat()
+        fillPaint.color = batteryColor
+        val fillRight = rect.left + inner + (rect.width() - inner * 2).coerceAtLeast(0f) * (level.coerceIn(0, 100) / 100f)
+        canvas.drawRoundRect(
+            android.graphics.RectF(rect.left + inner, rect.top + inner, fillRight, rect.bottom - inner),
+            context.dp(2).toFloat(), context.dp(2).toFloat(), fillPaint
+        )
+        canvas.drawRoundRect(rect, context.dp(4).toFloat(), context.dp(4).toFloat(), bodyPaint)
+        canvas.drawRoundRect(
+            android.graphics.RectF(right, height * 0.34f, width - inset, height * 0.66f),
+            context.dp(1).toFloat(), context.dp(1).toFloat(), bodyPaint
+        )
+        if (charging) {
+            val bolt = android.graphics.Path().apply {
+                moveTo(width * 0.57f, height * 0.16f)
+                lineTo(width * 0.39f, height * 0.55f)
+                lineTo(width * 0.52f, height * 0.55f)
+                lineTo(width * 0.43f, height * 0.84f)
+                lineTo(width * 0.66f, height * 0.42f)
+                lineTo(width * 0.53f, height * 0.42f)
+                close()
+            }
+            canvas.drawPath(bolt, boltPaint)
+        }
     }
 }
 
