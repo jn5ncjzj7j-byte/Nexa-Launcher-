@@ -31,6 +31,7 @@ import android.view.animation.PathInterpolator
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.GridLayout
 import android.widget.VideoView
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -1664,66 +1665,153 @@ class MainActivity : Activity() {
 
 
     private fun showCustomColor(title: String, current: Int, onSelected: (Int) -> Unit) {
+        val palette = listOf(
+            0xFF000000.toInt(), 0xFF202633.toInt(), 0xFF536174.toInt(), 0xFFFFFFFF.toInt(),
+            0xFFFF5252.toInt(), 0xFFFF1744.toInt(), 0xFFFF4081.toInt(), 0xFFE040FB.toInt(),
+            0xFF7C4DFF.toInt(), 0xFF651FFF.toInt(), 0xFF536DFE.toInt(), 0xFF448AFF.toInt(),
+            0xFF40C4FF.toInt(), 0xFF18FFFF.toInt(), 0xFF64FFDA.toInt(), 0xFF69F0AE.toInt(),
+            0xFFB2FF59.toInt(), 0xFFEEFF41.toInt(), 0xFFFFFF00.toInt(), 0xFFFFD740.toInt(),
+            0xFFFFAB40.toInt(), 0xFFFF6E40.toInt(), 0xFF8D6E63.toInt(), 0xFFB0BEC5.toInt()
+        )
+        var selected = current
         val (preview, refresh) = createSettingPreview()
         val panel = settingPanel(preview)
-        val field = EditText(this).apply {
-            hint = "#RRGGBB"
-            setSingleLine(true)
-            setText(String.format("#%06X", 0xFFFFFF and current))
+        val selectedLabel = TextView(this).apply {
+            text = String.format("#%06X", 0xFFFFFF and selected)
+            textSize = 14f
             setTextColor(TEXT)
-            setHintTextColor(MUTED)
-            addTextChangedListener(object : TextWatcher {
-                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                    try {
-                        val value = s.toString().trim()
-                        preview.setBackgroundColor(Color.parseColor(if (value.startsWith("#")) value else "#$value"))
-                    } catch (_: Exception) {}
+            gravity = Gravity.CENTER
+            setPadding(0, dp(8), 0, dp(12))
+        }
+        panel.addView(selectedLabel, LinearLayout.LayoutParams(-1, dp(40)))
+        val grid = GridLayout(this).apply {
+            columnCount = 4
+            useDefaultMargins = true
+            alignmentMode = GridLayout.ALIGN_BOUNDS
+        }
+        palette.forEach { color ->
+            val swatch = TextView(this).apply {
+                text = if (color == selected) "✓" else ""
+                textSize = 20f
+                gravity = Gravity.CENTER
+                setTextColor(if (Color.luminance(color) < 0.45f) Color.WHITE else Color.BLACK)
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(color)
+                    cornerRadius = dp(12).toFloat()
+                    setStroke(dp(if (color == selected) 3 else 1), if (color == selected) ACCENT else MUTED)
                 }
-                override fun afterTextChanged(s: Editable?) {}
+                setOnClickListener {
+                    selected = color
+                    selectedLabel.text = String.format("#%06X", 0xFFFFFF and selected)
+                    preview.setBackgroundColor(selected)
+                    for (i in 0 until grid.childCount) {
+                        val child = grid.getChildAt(i) as TextView
+                        val childColor = palette[i]
+                        child.text = if (childColor == selected) "✓" else ""
+                        child.setTextColor(if (Color.luminance(childColor) < 0.45f) Color.WHITE else Color.BLACK)
+                        child.background = android.graphics.drawable.GradientDrawable().apply {
+                            setColor(childColor)
+                            cornerRadius = dp(12).toFloat()
+                            setStroke(dp(if (childColor == selected) 3 else 1), if (childColor == selected) ACCENT else MUTED)
+                        }
+                    }
+                }
+            }
+            grid.addView(swatch, GridLayout.LayoutParams().apply {
+                width = 0
+                height = dp(48)
+                columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
+                setMargins(dp(3), dp(3), dp(3), dp(3))
             })
         }
-        panel.addView(field, LinearLayout.LayoutParams(-1, dp(52)))
+        panel.addView(grid, LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT))
+        preview.setBackgroundColor(current)
         AlertDialog.Builder(this)
             .setTitle(localized(title))
-            .setView(panel)
+            .setView(ScrollView(this).apply { addView(panel) })
             .setPositiveButton(localized("Apply")) { _, _ ->
-                try {
-                    val value = field.text.toString().trim()
-                    val color = Color.parseColor(if (value.startsWith("#")) value else "#$value")
-                    onSelected(color)
-                    refresh()
-                } catch (_: Exception) {
-                    showMessage("Enter a valid color such as #8B7CFF.")
-                }
+                onSelected(selected)
+                refresh()
             }
             .setNegativeButton(localized("Cancel"), null)
             .show()
     }
 
     private fun showColorChoices(title: String, colors: List<Pair<String, Int>>, onSelected: (Int) -> Unit) {
-        val (preview, refresh) = createSettingPreview()
-        val panel = settingPanel(preview)
-        colors.forEach { (label, color) ->
-            panel.addView(TextView(this).apply {
-                text = localized(label)
-                textSize = 14f
-                setTextColor(TEXT)
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(12), dp(10), dp(12), dp(10))
-                background = roundedBackground(SURFACE, 10)
-                setOnClickListener {
-                    onSelected(color)
-                    if (title.contains("Background", true)) preview.setBackgroundColor(color)
-                    else if (title.contains("Visibility", true)) {
+        if (title.contains("Visibility", true)) {
+            val (preview, refresh) = createSettingPreview()
+            val panel = settingPanel(preview)
+            colors.forEach { (label, color) ->
+                panel.addView(TextView(this).apply {
+                    text = localized(label)
+                    textSize = 14f
+                    setTextColor(TEXT)
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(dp(12), dp(10), dp(12), dp(10))
+                    background = roundedBackground(SURFACE, 10)
+                    setOnClickListener {
+                        onSelected(color)
                         val image = preview.getChildAt(0) as? ImageView
                         image?.alpha = color / 255f
-                    } else refresh()
-                }
-            }, LinearLayout.LayoutParams(-1, dp(44)).apply { bottomMargin = dp(5) })
+                    }
+                }, LinearLayout.LayoutParams(-1, dp(44)).apply { bottomMargin = dp(5) })
+            }
+            AlertDialog.Builder(this)
+                .setTitle(localized(title))
+                .setView(ScrollView(this).apply { addView(panel) })
+                .setPositiveButton(localized("Done"), null)
+                .show()
+            return
         }
+        var selected = colors.firstOrNull()?.second ?: return
+        val (preview, refresh) = createSettingPreview()
+        val panel = settingPanel(preview)
+        val grid = GridLayout(this).apply {
+            columnCount = 3
+            useDefaultMargins = true
+            alignmentMode = GridLayout.ALIGN_BOUNDS
+        }
+        colors.forEach { (label, color) ->
+            val tile = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(dp(5), dp(7), dp(5), dp(7))
+                background = roundedBackground(SURFACE, 10)
+                addView(View(this@MainActivity).apply {
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        setColor(color)
+                        cornerRadius = dp(9).toFloat()
+                        setStroke(dp(1), MUTED)
+                    }
+                }, LinearLayout.LayoutParams(-1, dp(38)))
+                addView(TextView(this@MainActivity).apply {
+                    text = localized(label)
+                    textSize = 11f
+                    setTextColor(TEXT)
+                    gravity = Gravity.CENTER
+                    maxLines = 1
+                }, LinearLayout.LayoutParams(-1, dp(30)))
+                setOnClickListener {
+                    selected = color
+                    onSelected(color)
+                    preview.setBackgroundColor(color)
+                    for (i in 0 until grid.childCount) {
+                        grid.getChildAt(i).alpha = if (grid.getChildAt(i) === this) 1f else 0.62f
+                    }
+                    alpha = 1f
+                    refresh()
+                }
+            }
+            grid.addView(tile, GridLayout.LayoutParams().apply {
+                width = 0
+                height = dp(82)
+                columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
+                setMargins(dp(3), dp(3), dp(3), dp(3))
+            })
+        }
+        panel.addView(grid, LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT))
         AlertDialog.Builder(this)
-            .setTitle(title)
+            .setTitle(localized(title))
             .setView(ScrollView(this).apply { addView(panel) })
             .setPositiveButton(localized("Done"), null)
             .show()
