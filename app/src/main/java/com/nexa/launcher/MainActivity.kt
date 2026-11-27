@@ -1,6 +1,7 @@
 package com.nexa.launcher
 
 import android.app.Activity
+import android.animation.ValueAnimator
 import android.app.AlertDialog
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -297,6 +298,7 @@ class MainActivity : Activity() {
     private var selectedBackground = BACKGROUND
     private var selectedAccent = ACCENT
     private var batteryReceiverRegistered = false
+    private var lastBatteryPercent = -1
     private var packageReceiverRegistered = false
     private val batteryChangedReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -632,12 +634,32 @@ class MainActivity : Activity() {
             else -> 0xFF69D9A5.toInt()
         }
         val color = prefs.getInt(colorKey, defaultColor)
-        batteryIcon.level = percent
         batteryIcon.batteryColor = color
         batteryIcon.charging = charging
-        batteryIcon.invalidate()
-        batteryLabel.text = "$percent%"
+        batteryIcon.animateLevelTo(percent)
         batteryLabel.setTextColor(color)
+        if (lastBatteryPercent < 0) {
+            batteryLabel.text = "$percent%"
+        } else if (lastBatteryPercent != percent) {
+            val direction = if (percent > lastBatteryPercent) -1f else 1f
+            batteryLabel.animate().cancel()
+            batteryLabel.animate()
+                .alpha(0f)
+                .translationY(dp(10).toFloat() * direction)
+                .setDuration(90)
+                .withEndAction {
+                    batteryLabel.text = "$percent%"
+                    batteryLabel.translationY = -dp(10).toFloat() * direction
+                    batteryLabel.animate()
+                        .alpha(1f)
+                        .translationY(0f)
+                        .setDuration(180)
+                        .setInterpolator(NEXA_EASE)
+                        .start()
+                }
+                .start()
+        }
+        lastBatteryPercent = percent
     }
 
     private fun showBatterySettings() {
@@ -2398,6 +2420,23 @@ private class BatteryIconView(context: Context) : View(context) {
     private val boltPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
         style = android.graphics.Paint.Style.FILL
+    }
+
+    fun animateLevelTo(target: Int) {
+        val next = target.coerceIn(0, 100)
+        if (level == next) {
+            invalidate()
+            return
+        }
+        ValueAnimator.ofInt(level, next).apply {
+            duration = 420
+            interpolator = NEXA_EASE
+            addUpdateListener {
+                level = it.animatedValue as Int
+                invalidate()
+            }
+            start()
+        }
     }
 
     override fun onDraw(canvas: android.graphics.Canvas) {
