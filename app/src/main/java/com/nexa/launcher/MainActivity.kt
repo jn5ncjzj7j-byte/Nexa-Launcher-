@@ -156,6 +156,8 @@ class MainActivity : Activity() {
             topMargin = dp(18)
             bottomMargin = dp(18)
         })
+        hero.alpha = 0f
+        hero.translationY = dp(7).toFloat()
 
         search = EditText(this).apply {
             hint = "Search apps"
@@ -242,6 +244,12 @@ class MainActivity : Activity() {
         ).apply { topMargin = dp(8) })
 
         setContentView(root)
+
+        hero.animate()
+            .alpha(1f)
+            .translationY(0f)
+            .setDuration(180)
+            .start()
 
         search.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
@@ -745,6 +753,20 @@ private class AppAdapter(
         holder.label.text = app.label
         holder.icon.setImageDrawable(null)
         holder.itemView.tag = app.packageName
+        if (!holder.hasAnimated && position < 12) {
+            holder.hasAnimated = true
+            holder.itemView.alpha = 0f
+            holder.itemView.translationY = context.dp(7).toFloat()
+            holder.itemView.animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setDuration(140)
+                .start()
+        } else {
+            holder.itemView.alpha = 1f
+            holder.itemView.translationY = 0f
+            holder.hasAnimated = true
+        }
         holder.itemView.setOnClickListener { onClick(app) }
         holder.itemView.setOnLongClickListener {
             onLongClick(app)
@@ -784,7 +806,9 @@ private class AppAdapter(
         itemView: View,
         val icon: ImageView,
         val label: TextView
-    ) : RecyclerView.ViewHolder(itemView)
+    ) : RecyclerView.ViewHolder(itemView) {
+        var hasAnimated = false
+    }
 }
 
 private fun Context.dp(value: Int): Int =
