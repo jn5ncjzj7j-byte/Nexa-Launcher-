@@ -20,6 +20,8 @@ import android.util.LruCache
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.MotionEvent
+import android.view.animation.PathInterpolator
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.ImageView
@@ -41,6 +43,7 @@ private const val SURFACE_HIGH = 0xFF202633.toInt()
 private const val TEXT = 0xFFF5F6FC.toInt()
 private const val MUTED = 0xFF929BAD.toInt()
 private const val ACCENT = 0xFF9D8CFF.toInt()
+private val NEXA_EASE = PathInterpolator(0.2f, 0.8f, 0.2f, 1f)
 
 data class LauncherApp(
     val label: String,
@@ -114,6 +117,7 @@ class MainActivity : Activity() {
             setTextColor(TEXT)
             background = roundedBackground(SURFACE, 15)
             setOnClickListener { openAndroidSettings() }
+            setSmoothPressFeedback()
             setOnLongClickListener {
                 showSettings()
                 true
@@ -248,7 +252,8 @@ class MainActivity : Activity() {
         hero.animate()
             .alpha(1f)
             .translationY(0f)
-            .setDuration(180)
+            .setDuration(260)
+            .setInterpolator(NEXA_EASE)
             .start()
 
         search.addTextChangedListener(object : TextWatcher {
@@ -366,6 +371,7 @@ class MainActivity : Activity() {
                     buildCategoryTabs()
                     showFilteredApps()
                 }
+                setSmoothPressFeedback()
             }
             categoryTabs.addView(tab, LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -453,6 +459,7 @@ class MainActivity : Activity() {
                 isClickable = true
                 isFocusable = true
                 setOnClickListener { launchApp(app) }
+                setSmoothPressFeedback()
                 setOnLongClickListener {
                     showAppActions(app)
                     true
@@ -760,7 +767,8 @@ private class AppAdapter(
             holder.itemView.animate()
                 .alpha(1f)
                 .translationY(0f)
-                .setDuration(140)
+                .setDuration(240)
+                .setInterpolator(NEXA_EASE)
                 .start()
         } else {
             holder.itemView.alpha = 1f
@@ -768,6 +776,7 @@ private class AppAdapter(
             holder.hasAnimated = true
         }
         holder.itemView.setOnClickListener { onClick(app) }
+        holder.itemView.setSmoothPressFeedback()
         holder.itemView.setOnLongClickListener {
             onLongClick(app)
             true
@@ -808,6 +817,32 @@ private class AppAdapter(
         val label: TextView
     ) : RecyclerView.ViewHolder(itemView) {
         var hasAnimated = false
+    }
+}
+
+private fun View.setSmoothPressFeedback() {
+    setOnTouchListener { target, event ->
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                target.animate().cancel()
+                target.animate()
+                    .scaleX(0.97f)
+                    .scaleY(0.97f)
+                    .setDuration(90)
+                    .setInterpolator(NEXA_EASE)
+                    .start()
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                target.animate().cancel()
+                target.animate()
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .setDuration(190)
+                    .setInterpolator(NEXA_EASE)
+                    .start()
+            }
+        }
+        false
     }
 }
 
