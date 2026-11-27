@@ -985,6 +985,7 @@ class MainActivity : Activity() {
                     8 -> {
                         getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
                             .remove("wallpaper_uri")
+                            .remove("video_wallpaper_uri")
                             .apply()
                         applySavedAppearance()
                     }
@@ -1279,6 +1280,16 @@ private class AppAdapter(
     override fun onBindViewHolder(holder: AppHolder, position: Int) {
         val app = items[position]
         holder.label.text = app.label
+        val tileAlpha = context.getSharedPreferences("nexa_launcher", Context.MODE_PRIVATE)
+            .getInt("app_card_alpha", 65)
+        holder.itemView.background = if (tileAlpha == 0) {
+            android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+        } else {
+            android.graphics.drawable.GradientDrawable().apply {
+                setColor(Color.argb(tileAlpha, 23, 27, 36))
+                cornerRadius = context.dp(16).toFloat()
+            }
+        }
         holder.icon.layoutParams = holder.icon.layoutParams.apply {
             width = iconSizePx
             height = iconSizePx
