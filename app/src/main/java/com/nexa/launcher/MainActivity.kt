@@ -125,7 +125,9 @@ class MainActivity : Activity() {
         val language = resources.configuration.locales[0].language
         if (language != "th") return value
         val translations = mapOf(
-            localized("Today") to "วันนี้",
+            "Today" to "วันนี้",
+            "apps" to "แอป",
+            "results" to "ผลลัพธ์",
             "Battery --%" to "แบตเตอรี่ --%",
             "Battery" to "แบตเตอรี่",
             "Search apps" to "ค้นหาแอป",
@@ -366,7 +368,7 @@ class MainActivity : Activity() {
         }
 
         date = TextView(this).apply {
-            text = "Today"
+            text = localized("Today")
             textSize = 13f
             setTextColor(MUTED)
         }
@@ -445,7 +447,7 @@ class MainActivity : Activity() {
             LinearLayout.LayoutParams(0, dp(32), 1f)
         )
         appCount = TextView(this).apply {
-            text = "Loading"
+            text = localized("Loading")
             textSize = 12f
             setTextColor(MUTED)
         }
@@ -651,9 +653,9 @@ class MainActivity : Activity() {
         }
         appAdapter.submitList(filtered, animate)
         appCount.text = if (query.isBlank()) {
-            "\${filtered.size} \${localized("apps")}"
+            "${filtered.size} ${localized("apps")}"
         } else {
-            "\${filtered.size} \${localized("results")}"
+            "${filtered.size} ${localized("results")}"
         }
     }
 
