@@ -301,16 +301,17 @@ class MainActivity : Activity() {
             if (Build.VERSION.SDK_INT >= 33) {
                 registerReceiver(packageRemovedReceiver, packageFilter, Context.RECEIVER_NOT_EXPORTED)
                 packageReceiverRegistered = true
-                registerReceiver(batteryChangedReceiver, batteryFilter, Context.RECEIVER_NOT_EXPORTED)
+                registerReceiver(batteryChangedReceiver, batteryFilter, Context.RECEIVER_NOT_EXPORTED).also {
+                    batteryReceiverRegistered = true
+                }
             } else {
                 @Suppress("DEPRECATION")
-                registerReceiver(packageRemovedReceiver, packageFilter).also {
-                    packageReceiverRegistered = true
-                }
+                registerReceiver(packageRemovedReceiver, packageFilter)
+                packageReceiverRegistered = true
                 @Suppress("DEPRECATION")
-                registerReceiver(batteryChangedReceiver, batteryFilter)
-            }.also {
-                batteryReceiverRegistered = true
+                registerReceiver(batteryChangedReceiver, batteryFilter).also {
+                    batteryReceiverRegistered = true
+                }
             }
         } catch (_: Exception) {
             null
