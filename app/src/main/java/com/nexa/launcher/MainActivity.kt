@@ -29,6 +29,8 @@ import android.view.MotionEvent
 import android.view.animation.PathInterpolator
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
+import android.widget.FrameLayout
+import android.widget.VideoView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.HorizontalScrollView
@@ -67,6 +69,8 @@ class MainActivity : Activity() {
     private lateinit var date: TextView
     private lateinit var batteryLabel: TextView
     private lateinit var launcherRoot: LinearLayout
+    private lateinit var screenRoot: FrameLayout
+    private var videoWallpaper: VideoView? = null
     private var selectedBackground = BACKGROUND
     private var selectedAccent = ACCENT
     private var batteryReceiverRegistered = false
@@ -112,6 +116,13 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(selectedBackground)
             setPadding(dp(20), dp(14), dp(20), dp(8))
+        }
+        screenRoot = FrameLayout(this).apply {
+            setBackgroundColor(selectedBackground)
+            addView(launcherRoot, FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            ))
         }
 
         val top = LinearLayout(this).apply {
@@ -281,7 +292,7 @@ class MainActivity : Activity() {
             updateGridColumns(view.width)
         }
 
-        setContentView(launcherRoot)
+        setContentView(screenRoot)
         applySavedAppearance()
         window.decorView.post { if (!isFinishing && !isDestroyed) hideSystemBars() }
 
@@ -370,6 +381,7 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        videoWallpaper?.start()
         if (::recentContainer.isInitialized && allApps.isNotEmpty()) {
             renderQuickSections()
         }
@@ -382,6 +394,7 @@ class MainActivity : Activity() {
     override fun onPause() {
         super.onPause()
         mainHandler.removeCallbacks(clockTick)
+        videoWallpaper?.pause()
     }
 
     override fun onDestroy() {
@@ -716,7 +729,7 @@ class MainActivity : Activity() {
             setTextColor(TEXT)
             gravity = Gravity.CENTER
             background = roundedBackground(SURFACE, 15)
-            setOnClickListener { setContentView(launcherRoot) }
+            setOnClickListener { setContentView(screenRoot) }
             setSmoothPressFeedback()
         }
         header.addView(back, LinearLayout.LayoutParams(dp(48), dp(48)))
@@ -743,7 +756,7 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER
             background = roundedBackground(selectedAccent, 14)
             setPadding(dp(16), dp(10), dp(16), dp(10))
-            setOnClickListener { setContentView(launcherRoot) }
+            setOnClickListener { setContentView(screenRoot) }
             setSmoothPressFeedback()
         }
         header.addView(done)
@@ -802,7 +815,23 @@ class MainActivity : Activity() {
             })
         }
         section("Personalization", "Change the look, colors, and wallpaper")
-        item("Appearance studio", "Wallpapers, colors, transparency, and styles") { showAppearanceSettings() }
+        item("Appearance studio", "Photo and video wallpapers, crop, transparency, and styles") { showAppearanceSettings() }
+        item("App tile background", "Remove or soften the boxes behind app icons") {
+            val choices = arrayOf("No boxes", "Very subtle", "Soft", "Normal")
+            val values = intArrayOf(0, 28, 65, 115)
+            val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+            val current = prefs.getInt("app_card_alpha", 65)
+            val selected = values.indices.minByOrNull { kotlin.math.abs(values[it] - current) } ?: 2
+            AlertDialog.Builder(this)
+                .setTitle("App tile background")
+                .setSingleChoiceItems(choices, selected) { dialog, which ->
+                    prefs.edit().putInt("app_card_alpha", values[which]).apply()
+                    appAdapter.notifyDataSetChanged()
+                    dialog.dismiss()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
         section("Display", "Adjust how NEXA fills your device screen")
         item("Screen fit", "Use the full display area and remove unused top and bottom space") {
             val choices = arrayOf("Full screen", "System safe area")
@@ -815,7 +844,7 @@ class MainActivity : Activity() {
                         .putBoolean("full_screen_layout", which == 0)
                         .apply()
                     hideSystemBars()
-                    setContentView(launcherRoot)
+                    setContentView(screenRoot)
                     window.decorView.post { hideSystemBars() }
                     dialog.dismiss()
                 }
@@ -844,7 +873,9 @@ class MainActivity : Activity() {
 
     private fun showAppearanceSettings() {
         val options = arrayOf(
-            "Choose wallpaper",
+            "Choose photo wallpaper",
+            "Choose MP4 video wallpaper",
+            "Crop and position photo",
             "Background color",
             "Accent color",
             "Wallpaper visibility",
@@ -868,7 +899,20 @@ class MainActivity : Activity() {
                             showMessage("No image picker is available.")
                         }
                     }
-                    1 -> showColorChoices(
+                    1 -> {
+                        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                            type = "video/mp4"
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+                        }
+                        try {
+                            startActivityForResult(intent, 4102)
+                        } catch (_: Exception) {
+                            showMessage("No video picker is available.")
+                        }
+                    }
+                    2 -> showPhotoCropOptions()
+                    3 -> showColorChoices(
                         "Background color",
                         listOf(
                             "Midnight" to 0xFF0D0F14.toInt(),
@@ -891,7 +935,7 @@ class MainActivity : Activity() {
                             .apply()
                         applySavedAppearance()
                     }
-                    2 -> showColorChoices(
+                    4 -> showColorChoices(
                         "Accent color",
                         listOf(
                             "Violet" to 0xFF9D8CFF.toInt(),
@@ -914,7 +958,7 @@ class MainActivity : Activity() {
                             .apply()
                         buildCategoryTabs()
                     }
-                    3 -> showColorChoices(
+                    5 -> showColorChoices(
                         "Wallpaper visibility",
                         listOf("Subtle" to 45, "Balanced" to 82, "Vivid" to 135, "Strong" to 190)
                             .map { it.first to it.second }
@@ -924,27 +968,43 @@ class MainActivity : Activity() {
                             .apply()
                         applySavedAppearance()
                     }
-                    4 -> showCustomColor("Custom background color", selectedBackground) { color ->
+                    6 -> showCustomColor("Custom background color", selectedBackground) { color ->
                         selectedBackground = color
                         getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
                             .putInt("background_color", color)
                             .apply()
                         applySavedAppearance()
                     }
-                    5 -> showCustomColor("Custom accent color", selectedAccent) { color ->
+                    7 -> showCustomColor("Custom accent color", selectedAccent) { color ->
                         selectedAccent = color
                         getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
                             .putInt("accent_color", color)
                             .apply()
                         buildCategoryTabs()
                     }
-                    6 -> {
+                    8 -> {
                         getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
                             .remove("wallpaper_uri")
                             .apply()
                         applySavedAppearance()
                     }
                 }
+            }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
+    private fun showPhotoCropOptions() {
+        val choices = arrayOf("Center crop", "Fit entire photo", "Crop from top", "Crop from bottom")
+        val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+        val current = prefs.getInt("wallpaper_crop_mode", 0).coerceIn(0, 3)
+        AlertDialog.Builder(this)
+            .setTitle("Photo crop and position")
+            .setMessage("Choose how your photo fills the launcher background.")
+            .setSingleChoiceItems(choices, current) { dialog, which ->
+                prefs.edit().putInt("wallpaper_crop_mode", which).apply()
+                applySavedAppearance()
+                dialog.dismiss()
             }
             .setNegativeButton("Close", null)
             .show()
@@ -991,13 +1051,36 @@ class MainActivity : Activity() {
         val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
         selectedBackground = prefs.getInt("background_color", BACKGROUND)
         selectedAccent = prefs.getInt("accent_color", ACCENT)
-        val uriText = prefs.getString("wallpaper_uri", null)
-        if (uriText.isNullOrBlank()) {
+        val videoUri = prefs.getString("video_wallpaper_uri", null)
+        val photoUri = prefs.getString("wallpaper_uri", null)
+        videoWallpaper?.let {
+            screenRoot.removeView(it)
+            it.stopPlayback()
+        }
+        videoWallpaper = null
+        if (!videoUri.isNullOrBlank()) {
+            launcherRoot.setBackgroundColor(Color.TRANSPARENT)
+            val player = VideoView(this).apply {
+                setVideoURI(Uri.parse(videoUri))
+                setOnPreparedListener { media ->
+                    media.isLooping = true
+                    media.setVolume(0f, 0f)
+                    start()
+                }
+            }
+            videoWallpaper = player
+            screenRoot.addView(player, 0, FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            ))
+            return
+        }
+        if (photoUri.isNullOrBlank()) {
             launcherRoot.setBackgroundColor(selectedBackground)
             return
         }
         try {
-            val uri = Uri.parse(uriText)
+            val uri = Uri.parse(photoUri)
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
             val maxDimension = 1600
@@ -1015,7 +1098,15 @@ class MainActivity : Activity() {
                 launcherRoot.setBackgroundColor(selectedBackground)
                 return
             }
-            val image = BitmapDrawable(resources, bitmap).apply { alpha = prefs.getInt("wallpaper_alpha", 82) }
+            val image = BitmapDrawable(resources, bitmap).apply {
+                alpha = prefs.getInt("wallpaper_alpha", 190)
+                gravity = when (prefs.getInt("wallpaper_crop_mode", 0)) {
+                    1 -> Gravity.CENTER
+                    2 -> Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                    3 -> Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+                    else -> Gravity.FILL
+                }
+            }
             launcherRoot.background = LayerDrawable(arrayOf(ColorDrawable(selectedBackground), image))
         } catch (_: Exception) {
             launcherRoot.setBackgroundColor(selectedBackground)
@@ -1025,16 +1116,19 @@ class MainActivity : Activity() {
     @Deprecated("Deprecated in Android")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != 4101 || resultCode != RESULT_OK) return
+        if ((requestCode != 4101 && requestCode != 4102) || resultCode != RESULT_OK) return
         val uri = data?.data ?: return
         try {
             contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
-                .putString("wallpaper_uri", uri.toString())
-                .apply()
+            val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+            if (requestCode == 4102) {
+                prefs.edit().putString("video_wallpaper_uri", uri.toString()).remove("wallpaper_uri").apply()
+            } else {
+                prefs.edit().putString("wallpaper_uri", uri.toString()).remove("video_wallpaper_uri").apply()
+            }
             applySavedAppearance()
         } catch (_: Exception) {
-            showMessage("Unable to use that image. Try choosing another picture.")
+            showMessage("Unable to use that media file. Try choosing another file.")
         }
     }
 
@@ -1153,7 +1247,11 @@ private class AppAdapter(
             gravity = Gravity.CENTER
             setPadding(context.dp(5), context.dp(9), context.dp(5), context.dp(8))
             minimumHeight = (cellWidthPx * 0.88f).toInt()
-            background = context.roundedBackground(SURFACE, 16)
+            val alpha = context.getSharedPreferences("nexa_launcher", Context.MODE_PRIVATE).getInt("app_card_alpha", 65)
+            background = if (alpha == 0) android.graphics.drawable.ColorDrawable(Color.TRANSPARENT) else android.graphics.drawable.GradientDrawable().apply {
+                setColor(Color.argb(alpha, 23, 27, 36))
+                cornerRadius = context.dp(16).toFloat()
+            }
             isClickable = true
             isFocusable = true
         }
