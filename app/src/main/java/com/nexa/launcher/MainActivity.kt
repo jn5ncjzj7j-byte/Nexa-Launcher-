@@ -363,12 +363,17 @@ class MainActivity : Activity() {
     private val builtInCategories = listOf("All Apps", "Games", "Movies & TV", "Music", "Tools")
     private val worker = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val packageRemovedReceiver = object : BroadcastReceiver() {
+    private val packageChangedReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            if (intent.action == Intent.ACTION_PACKAGE_REMOVED &&
-                !intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)
-            ) {
-                loadApps()
+            when (intent.action) {
+                Intent.ACTION_PACKAGE_ADDED,
+                Intent.ACTION_PACKAGE_CHANGED,
+                Intent.ACTION_PACKAGE_REPLACED -> loadApps()
+                Intent.ACTION_PACKAGE_REMOVED -> {
+                    if (!intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)) {
+                        loadApps()
+                    }
+                }
             }
         }
     }
@@ -692,20 +697,24 @@ class MainActivity : Activity() {
             } else false
         }
 
-        val packageFilter = IntentFilter(Intent.ACTION_PACKAGE_REMOVED).apply {
+        val packageFilter = IntentFilter().apply {
+            addAction(Intent.ACTION_PACKAGE_ADDED)
+            addAction(Intent.ACTION_PACKAGE_CHANGED)
+            addAction(Intent.ACTION_PACKAGE_REMOVED)
+            addAction(Intent.ACTION_PACKAGE_REPLACED)
             addDataScheme("package")
         }
         val batteryFilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
         val batteryIntent = try {
             if (Build.VERSION.SDK_INT >= 33) {
-                registerReceiver(packageRemovedReceiver, packageFilter, Context.RECEIVER_NOT_EXPORTED)
+                registerReceiver(packageChangedReceiver, packageFilter, Context.RECEIVER_NOT_EXPORTED)
                 packageReceiverRegistered = true
                 registerReceiver(batteryChangedReceiver, batteryFilter, Context.RECEIVER_NOT_EXPORTED).also {
                     batteryReceiverRegistered = true
                 }
             } else {
                 @Suppress("DEPRECATION")
-                registerReceiver(packageRemovedReceiver, packageFilter)
+                registerReceiver(packageChangedReceiver, packageFilter)
                 packageReceiverRegistered = true
                 @Suppress("DEPRECATION")
                 registerReceiver(batteryChangedReceiver, batteryFilter).also {
@@ -1219,7 +1228,7 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         mainHandler.removeCallbacksAndMessages(null)
         if (packageReceiverRegistered) {
-            unregisterReceiver(packageRemovedReceiver)
+            unregisterReceiver(packageChangedReceiver)
             packageReceiverRegistered = false
         }
         if (batteryReceiverRegistered) {
