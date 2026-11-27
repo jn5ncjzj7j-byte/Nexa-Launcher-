@@ -14,6 +14,7 @@ import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.LayerDrawable
 import android.graphics.drawable.Drawable
 import android.net.Uri
+import android.media.MediaMetadataRetriever
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -71,6 +72,16 @@ class MainActivity : Activity() {
     private lateinit var launcherRoot: LinearLayout
     private lateinit var screenRoot: FrameLayout
     private var videoWallpaper: VideoView? = null
+    private val videoTrimTick = object : Runnable {
+        override fun run() {
+            val player = videoWallpaper ?: return
+            val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+            val start = prefs.getInt("video_trim_start", 0)
+            val end = prefs.getInt("video_trim_end", 0)
+            if (end > start && player.isPlaying && player.currentPosition >= end) player.seekTo(start)
+            if (player.isPlaying) mainHandler.postDelayed(this, 120)
+        }
+    }
     private var selectedBackground = BACKGROUND
     private var selectedAccent = ACCENT
     private var batteryReceiverRegistered = false
@@ -382,6 +393,10 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         videoWallpaper?.start()
+        if (videoWallpaper?.isPlaying == true) {
+            mainHandler.removeCallbacks(videoTrimTick)
+            mainHandler.post(videoTrimTick)
+        }
         if (::recentContainer.isInitialized && allApps.isNotEmpty()) {
             renderQuickSections()
         }
@@ -394,6 +409,7 @@ class MainActivity : Activity() {
     override fun onPause() {
         super.onPause()
         mainHandler.removeCallbacks(clockTick)
+        mainHandler.removeCallbacks(videoTrimTick)
         videoWallpaper?.pause()
     }
 
@@ -874,7 +890,8 @@ class MainActivity : Activity() {
     private fun showAppearanceSettings() {
         val options = arrayOf(
             "Choose photo wallpaper",
-            "Choose MP4 video wallpaper",
+            "Choose video wallpaper (common video formats)",
+            "Trim video start and end",
             "Crop and position photo",
             "Background color",
             "Accent color",
@@ -902,7 +919,7 @@ class MainActivity : Activity() {
                     1 -> {
                         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                             addCategory(Intent.CATEGORY_OPENABLE)
-                            type = "video/mp4"
+                            type = "video/*"
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
                         }
                         try {
@@ -911,8 +928,9 @@ class MainActivity : Activity() {
                             showMessage("No video picker is available.")
                         }
                     }
-                    2 -> showPhotoCropOptions()
-                    3 -> showColorChoices(
+                    2 -> showVideoTrimEditor()
+                    3 -> showPhotoCropOptions()
+                    4 -> showColorChoices(
                         "Background color",
                         listOf(
                             "Midnight" to 0xFF0D0F14.toInt(),
@@ -935,7 +953,7 @@ class MainActivity : Activity() {
                             .apply()
                         applySavedAppearance()
                     }
-                    4 -> showColorChoices(
+                    5 -> showColorChoices(
                         "Accent color",
                         listOf(
                             "Violet" to 0xFF9D8CFF.toInt(),
@@ -958,7 +976,7 @@ class MainActivity : Activity() {
                             .apply()
                         buildCategoryTabs()
                     }
-                    5 -> showColorChoices(
+                    6 -> showColorChoices(
                         "Wallpaper visibility",
                         listOf("Subtle" to 45, "Balanced" to 82, "Vivid" to 135, "Strong" to 190)
                             .map { it.first to it.second }
@@ -968,21 +986,21 @@ class MainActivity : Activity() {
                             .apply()
                         applySavedAppearance()
                     }
-                    6 -> showCustomColor("Custom background color", selectedBackground) { color ->
+                    7 -> showCustomColor("Custom background color", selectedBackground) { color ->
                         selectedBackground = color
                         getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
                             .putInt("background_color", color)
                             .apply()
                         applySavedAppearance()
                     }
-                    7 -> showCustomColor("Custom accent color", selectedAccent) { color ->
+                    8 -> showCustomColor("Custom accent color", selectedAccent) { color ->
                         selectedAccent = color
                         getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
                             .putInt("accent_color", color)
                             .apply()
                         buildCategoryTabs()
                     }
-                    8 -> {
+                    9 -> {
                         getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
                             .remove("wallpaper_uri")
                             .remove("video_wallpaper_uri")
@@ -992,6 +1010,69 @@ class MainActivity : Activity() {
                 }
             }
             .setNegativeButton("Close", null)
+            .show()
+    }
+
+    private fun showVideoTrimEditor() {
+        val uriText = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+            .getString("video_wallpaper_uri", null)
+        if (uriText.isNullOrBlank()) {
+            showMessage("Choose a video wallpaper first.")
+            return
+        }
+        val retriever = MediaMetadataRetriever()
+        val duration = try {
+            retriever.setDataSource(this, Uri.parse(uriText))
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+        } catch (_: Exception) {
+            0L
+        } finally {
+            try { retriever.release() } catch (_: Exception) {}
+        }
+        if (duration < 1000L) {
+            showMessage("This video format cannot be read by the device media decoder.")
+            return
+        }
+        val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+        val startField = EditText(this).apply {
+            hint = "Start time in seconds"
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+            setSingleLine(true)
+            setText((prefs.getInt("video_trim_start", 0) / 1000f).toString().trimEnd('0').trimEnd('.'))
+        }
+        val endField = EditText(this).apply {
+            hint = "End time in seconds"
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+            setSingleLine(true)
+            val saved = prefs.getInt("video_trim_end", 0)
+            setText(if (saved > 0) (saved / 1000f).toString() else (duration / 1000f).toString())
+        }
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(22), dp(8), dp(22), 0)
+            addView(TextView(this@MainActivity).apply {
+                text = "Video length: %.1f seconds".format(Locale.US, duration / 1000f)
+                setTextColor(MUTED)
+                textSize = 12f
+            })
+            addView(startField)
+            addView(endField)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Trim video wallpaper")
+            .setMessage("Set the section that plays repeatedly. Times are in seconds.")
+            .setView(panel)
+            .setPositiveButton("Save") { _, _ ->
+                val start = (startField.text.toString().toFloatOrNull()?.times(1000f))?.toInt()
+                val end = (endField.text.toString().toFloatOrNull()?.times(1000f))?.toInt()
+                if (start == null || end == null || start < 0 || end <= start || end > duration) {
+                    showMessage("Enter a valid range within the video length.")
+                } else {
+                    prefs.edit().putInt("video_trim_start", start).putInt("video_trim_end", end).apply()
+                    applySavedAppearance()
+                }
+            }
+            .setNegativeButton("Cancel", null)
             .show()
     }
 
@@ -1064,9 +1145,15 @@ class MainActivity : Activity() {
             val player = VideoView(this).apply {
                 setVideoURI(Uri.parse(videoUri))
                 setOnPreparedListener { media ->
-                    media.isLooping = true
+                    media.isLooping = false
                     media.setVolume(0f, 0f)
+                    val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+                    val startAt = prefs.getInt("video_trim_start", 0)
+                    val endAt = prefs.getInt("video_trim_end", 0)
+                    seekTo(startAt)
                     start()
+                    mainHandler.removeCallbacks(videoTrimTick)
+                    mainHandler.post(videoTrimTick)
                 }
             }
             videoWallpaper = player
@@ -1123,7 +1210,7 @@ class MainActivity : Activity() {
             contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
             if (requestCode == 4102) {
-                prefs.edit().putString("video_wallpaper_uri", uri.toString()).remove("wallpaper_uri").apply()
+                prefs.edit().putString("video_wallpaper_uri", uri.toString()).remove("wallpaper_uri").remove("video_trim_start").remove("video_trim_end").apply()
             } else {
                 prefs.edit().putString("wallpaper_uri", uri.toString()).remove("video_wallpaper_uri").apply()
             }
