@@ -313,6 +313,10 @@ class MainActivity : Activity() {
             "Automatic location" to "ใช้ตำแหน่งอัตโนมัติ",
             "Set city manually" to "ตั้งค่าเมืองเอง",
             "Temperature position" to "ตำแหน่งอุณหภูมิ",
+            "Temperature unit" to "หน่วยอุณหภูมิ",
+            "Device default" to "ตามอุปกรณ์",
+            "Celsius (°C)" to "เซลเซียส (°C)",
+            "Fahrenheit (°F)" to "ฟาเรนไฮต์ (°F)",
             "Enter city name" to "ป้อนชื่อเมือง",
             "Set outdoor weather city" to "ตั้งค่าเมืองสำหรับสภาพอากาศ",
             "Auto" to "อัตโนมัติ",
@@ -522,8 +526,10 @@ class MainActivity : Activity() {
             setTextColor(MUTED)
             gravity = Gravity.END
         }
-        weatherRow.addView(deviceTempLabel, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        outsideTempLabel.gravity = Gravity.START
+        deviceTempLabel.gravity = Gravity.END
         weatherRow.addView(outsideTempLabel, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        weatherRow.addView(deviceTempLabel, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         hero.addView(weatherRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         launcherRoot.addView(hero, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -703,11 +709,11 @@ class MainActivity : Activity() {
         if (rawTemperature != Int.MIN_VALUE && rawTemperature > 0) {
             val temperature = rawTemperature / 10f
             if (lastDeviceTemperature.isNaN() || kotlin.math.abs(temperature - lastDeviceTemperature) >= 0.1f) {
-                deviceTempLabel.text = localized("Device") + " " + String.format(Locale.getDefault(), "%.1f", temperature) + "°C"
+                deviceTempLabel.text = localized("Device") + " " + formatTemperature(temperature)
                 lastDeviceTemperature = temperature
             }
         } else {
-            deviceTempLabel.text = localized("Device --°C")
+            deviceTempLabel.text = localized("Device") + " --" + temperatureUnitSymbol()
         }
         val level = intent?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) ?: -1
         val scale = intent?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1) ?: -1
@@ -767,7 +773,7 @@ class MainActivity : Activity() {
 
     private fun showTemperatureSettings() {
         val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
-        val choices = arrayOf(localized("Automatic location"), localized("Set city manually"), localized("Temperature position"))
+        val choices = arrayOf(localized("Automatic location"), localized("Set city manually"), localized("Temperature position"), localized("Temperature unit"))
         AlertDialog.Builder(this)
             .setTitle(localized("Temperature display"))
             .setItems(choices) { _, which ->
@@ -812,6 +818,32 @@ class MainActivity : Activity() {
                             .setNegativeButton(localized("Cancel"), null)
                             .show()
                     }
+                    3 -> {
+                        val units = arrayOf(localized("Device default"), localized("Celsius (°C)"), localized("Fahrenheit (°F)"))
+                        val selected = prefs.getString("temperature_unit", "system")
+                        val index = when (selected) {
+                            "celsius" -> 1
+                            "fahrenheit" -> 2
+                            else -> 0
+                        }
+                        AlertDialog.Builder(this)
+                            .setTitle(localized("Temperature unit"))
+                            .setSingleChoiceItems(units, index) { dialog, unit ->
+                                val value = when (unit) {
+                                    1 -> "celsius"
+                                    2 -> "fahrenheit"
+                                    else -> "system"
+                                }
+                                prefs.edit().putString("temperature_unit", value).apply()
+                                lastDeviceTemperature = Float.NaN
+                                val batteryIntent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+                                updateBatteryStatus(batteryIntent)
+                                refreshWeather()
+                                dialog.dismiss()
+                            }
+                            .setNegativeButton(localized("Cancel"), null)
+                            .show()
+                    }
                 }
             }
             .setNegativeButton(localized("Close"), null)
@@ -830,6 +862,22 @@ class MainActivity : Activity() {
             else -> hero.childCount
         }.coerceIn(0, hero.childCount)
         hero.addView(weatherRow, index)
+    }
+
+    private fun usesFahrenheit(): Boolean {
+        val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+        return when (prefs.getString("temperature_unit", "system")) {
+            "celsius" -> false
+            "fahrenheit" -> true
+            else -> Locale.getDefault().country.uppercase(Locale.ROOT) in setOf("US", "BS", "BZ", "KY", "PW", "FM", "MH", "LR")
+        }
+    }
+
+    private fun temperatureUnitSymbol(): String = if (usesFahrenheit()) "°F" else "°C"
+
+    private fun formatTemperature(celsius: Float): String {
+        val value = if (usesFahrenheit()) celsius * 9f / 5f + 32f else celsius
+        return String.format(Locale.getDefault(), "%.1f", value) + temperatureUnitSymbol()
     }
 
     private fun refreshWeather() {
@@ -913,7 +961,7 @@ class MainActivity : Activity() {
             val temperature = requestWeather(latitude, longitude)
             runOnUiThread {
                 weatherRequestRunning = false
-                outsideTempLabel.text = if (temperature != null) localized("Outside") + " " + temperature + "°C" else localized("Outside unavailable")
+                outsideTempLabel.text = if (temperature != null) localized("Outside") + " " + formatTemperature(temperature.toFloat()) else localized("Outside unavailable")
             }
         }
     }
@@ -928,7 +976,7 @@ class MainActivity : Activity() {
             val name = first.optString("name", city)
             val country = first.optString("country", "")
             val temperature = requestWeather(first.getDouble("latitude"), first.getDouble("longitude")) ?: return null
-            localized("Outside") + " " + temperature + "°C · " + if (country.isBlank()) name else name + ", " + country
+            localized("Outside") + " " + formatTemperature(temperature.toFloat()) + " · " + if (country.isBlank()) name else name + ", " + country
         } catch (_: Exception) {
             null
         }
