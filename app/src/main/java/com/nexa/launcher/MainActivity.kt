@@ -79,28 +79,31 @@ class MainActivity : Activity() {
     private val videoTrimTick = object : Runnable {
         override fun run() {
             val player = videoWallpaper ?: return
+            if (!activityResumed || videoWallpaper !== player) return
             val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
             val start = prefs.getInt("video_trim_start", 0)
             val end = prefs.getInt("video_trim_end", 0)
             val loop = prefs.getBoolean("video_loop", true)
-            if (end > start && player.isPlaying && player.currentPosition >= end) {
-                if (loop && !trimLoopPending) {
-                    trimLoopPending = true
+            if (end <= start) return
+            if (player.isPlaying && player.currentPosition >= end && !trimLoopPending) {
+                if (!loop) {
                     player.pause()
-                    player.seekTo(start)
-                    mainHandler.postDelayed({
-                        trimLoopPending = false
-                        if (videoWallpaper === player && activityResumed && !isFinishing && !isDestroyed) {
-                            player.start()
-                            mainHandler.removeCallbacks(this)
-                            mainHandler.post(this)
-                        }
-                    }, 250)
-                } else if (!loop) {
-                    player.pause()
+                    return
                 }
+                trimLoopPending = true
+                player.pause()
+                player.seekTo(start)
+                mainHandler.postDelayed({
+                    trimLoopPending = false
+                    if (videoWallpaper === player && activityResumed && !isFinishing && !isDestroyed) {
+                        player.start()
+                        mainHandler.removeCallbacks(this)
+                        mainHandler.postDelayed(this, 100)
+                    }
+                }, 250)
+                return
             }
-            if (player.isPlaying && !trimLoopPending) mainHandler.postDelayed(this, 80)
+            if (!trimLoopPending) mainHandler.postDelayed(this, 80)
         }
     }
     private var selectedBackground = BACKGROUND
@@ -415,9 +418,9 @@ class MainActivity : Activity() {
         super.onResume()
         activityResumed = true
         videoWallpaper?.start()
-        if (videoWallpaper?.isPlaying == true) {
+        if (videoWallpaper != null) {
             mainHandler.removeCallbacks(videoTrimTick)
-            mainHandler.post(videoTrimTick)
+            mainHandler.postDelayed(videoTrimTick, 150)
         }
         if (::recentContainer.isInitialized && allApps.isNotEmpty()) {
             renderQuickSections()
@@ -1538,7 +1541,10 @@ class MainActivity : Activity() {
                     if (startAt > 0) seekTo(startAt)
                     start()
                     mainHandler.removeCallbacks(videoTrimTick)
-                    if (endAt > startAt) mainHandler.post(videoTrimTick)
+                    if (endAt > startAt) {
+                        mainHandler.removeCallbacks(videoTrimTick)
+                        mainHandler.postDelayed(videoTrimTick, 150)
+                    }
                 }
             }
             videoWallpaper = player
