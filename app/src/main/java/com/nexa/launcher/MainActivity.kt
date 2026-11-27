@@ -97,7 +97,11 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER
             setTextColor(TEXT)
             background = roundedBackground(SURFACE, 15)
-            setOnClickListener { showSettings() }
+            setOnClickListener { openAndroidSettings() }
+            setOnLongClickListener {
+                showSettings()
+                true
+            }
         }
 
         top.addView(brand, LinearLayout.LayoutParams(0, dp(44), 1f))
@@ -261,6 +265,10 @@ class MainActivity : Activity() {
                     )
                 }
                 .distinctBy { it.packageName }
+                .filter {
+                    it.packageName != this@MainActivity.packageName &&
+                        it.packageName != "com.android.settings"
+                }
                 .sortedBy { it.label.lowercase(Locale.getDefault()) }
 
             mainHandler.post {
@@ -274,7 +282,9 @@ class MainActivity : Activity() {
 
     private fun showFilteredApps() {
         val query = currentQuery.trim()
-        val filtered = if (query.isBlank()) allApps else allApps.filter {
+        val hidden = getHiddenPackages()
+        val visibleApps = allApps.filter { it.packageName !in hidden }
+        val filtered = if (query.isBlank()) visibleApps else visibleApps.filter {
             it.label.contains(query, true) || it.packageName.contains(query, true)
         }
         appAdapter.submitList(filtered)
@@ -341,6 +351,47 @@ class MainActivity : Activity() {
         return favorites.mapNotNull { pkg -> allApps.find { it.packageName == pkg } }
     }
 
+    private fun getHiddenPackages(): Set<String> {
+        return getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+            .getString("hidden_apps", "")
+            .orEmpty()
+            .split("|")
+            .filter { it.isNotBlank() }
+            .toSet()
+    }
+
+    private fun hideApp(app: LauncherApp) {
+        val hidden = getHiddenPackages().toMutableSet()
+        hidden.add(app.packageName)
+        getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
+            .putString("hidden_apps", hidden.joinToString("|"))
+            .apply()
+        showFilteredApps()
+    }
+
+    private fun showHiddenApps() {
+        val hidden = getHiddenPackages()
+            .mapNotNull { pkg -> allApps.find { it.packageName == pkg } }
+        if (hidden.isEmpty()) {
+            showMessage("No hidden apps.")
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Hidden apps")
+            .setItems(hidden.map { it.label }.toTypedArray()) { _, index ->
+                val selected = hidden[index]
+                val updated = getHiddenPackages().toMutableSet()
+                updated.remove(selected.packageName)
+                getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
+                    .putString("hidden_apps", updated.joinToString("|"))
+                    .apply()
+                showFilteredApps()
+                showHiddenApps()
+            }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
     private fun toggleFavorite(app: LauncherApp) {
         val favorites = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
             .getString("favorite_apps", "")
@@ -382,7 +433,8 @@ class MainActivity : Activity() {
         val options = arrayOf(
             if (favorite) "Remove from favorites" else "Add to favorites",
             "App info",
-            "Uninstall"
+            "Uninstall",
+            "Hide app"
         )
         AlertDialog.Builder(this)
             .setTitle(app.label)
@@ -391,6 +443,7 @@ class MainActivity : Activity() {
                     0 -> toggleFavorite(app)
                     1 -> openAppInfo(app)
                     2 -> uninstallApp(app)
+                    3 -> hideApp(app)
                 }
             }
             .show()
@@ -416,9 +469,19 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun openAndroidSettings() {
+        try {
+            startActivity(Intent(Settings.ACTION_SETTINGS))
+        } catch (_: Exception) {
+            showMessage("Android Settings could not be opened.")
+        }
+    }
+
     private fun showSettings() {
         val options = arrayOf(
+            "Android Settings",
             "Refresh apps",
+            "Manage hidden apps",
             "Manage default home app",
             "About NEXA"
         )
@@ -426,17 +489,19 @@ class MainActivity : Activity() {
             .setTitle("NEXA settings")
             .setItems(options) { _, which ->
                 when (which) {
-                    0 -> loadApps()
-                    1 -> {
+                    0 -> openAndroidSettings()
+                    1 -> loadApps()
+                    2 -> showHiddenApps()
+                    3 -> {
                         try {
                             startActivity(Intent(Settings.ACTION_HOME_SETTINGS))
                         } catch (_: Exception) {
                             showMessage("Open Android Settings and choose Default apps, then Home app.")
                         }
                     }
-                    2 -> AlertDialog.Builder(this)
+                    4 -> AlertDialog.Builder(this)
                         .setTitle("NEXA Launcher")
-                        .setMessage("A lightweight Android home screen focused on speed, clarity, and control. Version 0.2.0")
+                        .setMessage("A lightweight Android home screen focused on speed, clarity, and control. Version 0.3.0")
                         .setPositiveButton("OK", null)
                         .show()
                 }
