@@ -314,6 +314,7 @@ class MainActivity : Activity() {
             "Set city manually" to "ตั้งค่าเมืองเอง",
             "Temperature position" to "ตำแหน่งอุณหภูมิ",
             "Temperature unit" to "หน่วยอุณหภูมิ",
+            "Use your device preference, Celsius, or Fahrenheit" to "ใช้ค่าตามอุปกรณ์ เซลเซียส หรือฟาเรนไฮต์",
             "Device default" to "ตามอุปกรณ์",
             "Celsius (°C)" to "เซลเซียส (°C)",
             "Fahrenheit (°F)" to "ฟาเรนไฮต์ (°F)",
@@ -773,7 +774,7 @@ class MainActivity : Activity() {
 
     private fun showTemperatureSettings() {
         val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
-        val choices = arrayOf(localized("Automatic location"), localized("Set city manually"), localized("Temperature position"), localized("Temperature unit"))
+        val choices = arrayOf(localized("Automatic location"), localized("Set city manually"), localized("Temperature position"))
         AlertDialog.Builder(this)
             .setTitle(localized("Temperature display"))
             .setItems(choices) { _, which ->
@@ -818,32 +819,6 @@ class MainActivity : Activity() {
                             .setNegativeButton(localized("Cancel"), null)
                             .show()
                     }
-                    3 -> {
-                        val units = arrayOf(localized("Device default"), localized("Celsius (°C)"), localized("Fahrenheit (°F)"))
-                        val selected = prefs.getString("temperature_unit", "system")
-                        val index = when (selected) {
-                            "celsius" -> 1
-                            "fahrenheit" -> 2
-                            else -> 0
-                        }
-                        AlertDialog.Builder(this)
-                            .setTitle(localized("Temperature unit"))
-                            .setSingleChoiceItems(units, index) { dialog, unit ->
-                                val value = when (unit) {
-                                    1 -> "celsius"
-                                    2 -> "fahrenheit"
-                                    else -> "system"
-                                }
-                                prefs.edit().putString("temperature_unit", value).apply()
-                                lastDeviceTemperature = Float.NaN
-                                val batteryIntent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-                                updateBatteryStatus(batteryIntent)
-                                refreshWeather()
-                                dialog.dismiss()
-                            }
-                            .setNegativeButton(localized("Cancel"), null)
-                            .show()
-                    }
                 }
             }
             .setNegativeButton(localized("Close"), null)
@@ -864,13 +839,64 @@ class MainActivity : Activity() {
         hero.addView(weatherRow, index)
     }
 
+    private fun systemUsesFahrenheit(): Boolean {
+        val locales = mutableListOf<Locale>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            val configured = resources.configuration.locales
+            for (index in 0 until configured.size()) {
+                locales.add(configured[index])
+            }
+        }
+        locales.add(Locale.getDefault(Locale.Category.FORMAT))
+        locales.add(Locale.getDefault())
+        for (locale in locales.distinct()) {
+            when (locale.getUnicodeLocaleType("mu")?.lowercase(Locale.ROOT)) {
+                "celsius" -> return false
+                "fahrenhe", "fahrenheit" -> return true
+            }
+        }
+        val region = locales.firstOrNull { it.country.isNotBlank() }?.country?.uppercase(Locale.ROOT).orEmpty()
+        return region in setOf("US", "LR", "BS", "BZ", "KY", "PW", "FM", "MH", "PR", "GU", "VI", "AS")
+    }
+
     private fun usesFahrenheit(): Boolean {
         val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
         return when (prefs.getString("temperature_unit", "system")) {
             "celsius" -> false
             "fahrenheit" -> true
-            else -> Locale.getDefault().country.uppercase(Locale.ROOT) in setOf("US", "BS", "BZ", "KY", "PW", "FM", "MH", "LR")
+            else -> systemUsesFahrenheit()
         }
+    }
+
+    private fun showTemperatureUnitSettings() {
+        val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+        val units = arrayOf(localized("Device default"), localized("Celsius (°C)"), localized("Fahrenheit (°F)"))
+        val selected = prefs.getString("temperature_unit", "system")
+        val index = when (selected) {
+            "celsius" -> 1
+            "fahrenheit" -> 2
+            else -> 0
+        }
+        AlertDialog.Builder(this)
+            .setTitle(localized("Temperature unit"))
+            .setSingleChoiceItems(units, index) { dialog, unit ->
+                val value = when (unit) {
+                    1 -> "celsius"
+                    2 -> "fahrenheit"
+                    else -> "system"
+                }
+                prefs.edit().putString("temperature_unit", value).apply()
+                lastDeviceTemperature = Float.NaN
+                val batteryIntent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+                updateBatteryStatus(batteryIntent)
+                if (::outsideTempLabel.isInitialized) {
+                    outsideTempLabel.text = localized("Outside --") + temperatureUnitSymbol()
+                    refreshWeather()
+                }
+                dialog.dismiss()
+            }
+            .setNegativeButton(localized("Cancel"), null)
+            .show()
     }
 
     private fun temperatureUnitSymbol(): String = if (usesFahrenheit()) "°F" else "°C"
@@ -1866,6 +1892,9 @@ class MainActivity : Activity() {
         }
         item("Temperature display", "Show device and outdoor temperature, choose location and position") {
             showTemperatureSettings()
+        }
+        item("Temperature unit", "Use your device preference, Celsius, or Fahrenheit") {
+            showTemperatureUnitSettings()
         }
         item("Time format", "Choose 12-hour AM/PM or 24-hour time") {
             val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
