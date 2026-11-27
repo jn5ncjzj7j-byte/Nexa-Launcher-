@@ -21,6 +21,7 @@ import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.HorizontalScrollView
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.recyclerview.widget.DiffUtil
@@ -50,10 +51,13 @@ class MainActivity : Activity() {
     private lateinit var recentContainer: LinearLayout
     private lateinit var favoriteContainer: LinearLayout
     private lateinit var appCount: TextView
+    private lateinit var categoryTabs: LinearLayout
     private lateinit var clock: TextView
     private lateinit var date: TextView
     private var allApps: List<LauncherApp> = emptyList()
     private var currentQuery = ""
+    private var currentCategory = "All Apps"
+    private val categories = listOf("All Apps", "Games", "Movies & TV", "Music", "Tools")
     private val worker = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
     private val clockTick = object : Runnable {
@@ -193,6 +197,22 @@ class MainActivity : Activity() {
         appsHeader.addView(appCount)
         root.addView(appsHeader)
 
+        val categoryScroll = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+        }
+        categoryTabs = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        categoryScroll.addView(categoryTabs)
+        root.addView(categoryScroll, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            dp(42)
+        ).apply { topMargin = dp(5) })
+
+        buildCategoryTabs()
+
         appAdapter = AppAdapter(this, { app -> launchApp(app) }, { app -> showAppActions(app) })
         appList = RecyclerView(this).apply {
             layoutManager = GridLayoutManager(this@MainActivity, gridColumns())
@@ -284,7 +304,8 @@ class MainActivity : Activity() {
         val query = currentQuery.trim()
         val hidden = getHiddenPackages()
         val visibleApps = allApps.filter { it.packageName !in hidden }
-        val filtered = if (query.isBlank()) visibleApps else visibleApps.filter {
+        val categoryApps = visibleApps.filter { matchesCategory(it, currentCategory) }
+        val filtered = if (query.isBlank()) categoryApps else categoryApps.filter {
             it.label.contains(query, true) || it.packageName.contains(query, true)
         }
         appAdapter.submitList(filtered)
@@ -292,6 +313,72 @@ class MainActivity : Activity() {
             "${filtered.size} apps"
         } else {
             "${filtered.size} results"
+        }
+    }
+
+    private fun buildCategoryTabs() {
+        categoryTabs.removeAllViews()
+        categories.forEach { category ->
+            val selected = category == currentCategory
+            val tab = TextView(this).apply {
+                text = category
+                textSize = 12f
+                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                setTextColor(if (selected) BACKGROUND else TEXT)
+                gravity = Gravity.CENTER
+                background = roundedBackground(if (selected) ACCENT else SURFACE_HIGH, 18)
+                setPadding(dp(15), 0, dp(15), 0)
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    currentCategory = category
+                    buildCategoryTabs()
+                    showFilteredApps()
+                }
+            }
+            categoryTabs.addView(tab, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                dp(34)
+            ).apply { marginEnd = dp(8) })
+        }
+    }
+
+    private fun matchesCategory(app: LauncherApp, category: String): Boolean {
+        if (category == "All Apps") return true
+        val label = app.label.lowercase(Locale.getDefault())
+        val pkg = app.packageName.lowercase(Locale.getDefault())
+        val identity = "$label $pkg"
+        return when (category) {
+            "Games" -> {
+                val isGame = try {
+                    packageManager.getApplicationInfo(app.packageName, 0).category ==
+                        android.content.pm.ApplicationInfo.CATEGORY_GAME
+                } catch (_: Exception) {
+                    false
+                }
+                isGame || listOf(
+                    "game", "games", "minecraft", "roblox", "pubg", "mobile legends",
+                    "freefire", "free fire", "genshin", "asphalt", "callofduty",
+                    "call of duty", "clash", "among us", "stumble"
+                ).any { identity.contains(it) }
+            }
+            "Movies & TV" -> listOf(
+                "netflix", "youtube", "youtube tv", "disney", "prime video",
+                "amazon video", "hbo", "max ", "max.com", "plex", "vlc",
+                "mx player", "movie", "movies", "film", "tv", "stream",
+                "video player", "iqiyi", "viu", "wetv", "trueid", "one31"
+            ).any { identity.contains(it) }
+            "Music" -> listOf(
+                "spotify", "youtube music", "music", "audio", "soundcloud",
+                "apple music", "tidal", "deezer", "shazam", "podcast", "radio"
+            ).any { identity.contains(it) }
+            "Tools" -> listOf(
+                "calculator", "calendar", "clock", "file manager", "files",
+                "weather", "notes", "notepad", "recorder", "contacts",
+                "camera", "scanner", "compass", " flashlight", "browser",
+                "downloads", "keyboard", "settings", "cleaner"
+            ).any { identity.contains(it) }
+            else -> true
         }
     }
 
