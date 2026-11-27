@@ -270,7 +270,18 @@ class MainActivity : Activity() {
             "Background" to "พื้นหลัง",
             "Visibility" to "ความโปร่งใส",
             "Unable to use that media file. Try choosing another file." to "ไม่สามารถใช้ไฟล์สื่อนี้ได้ โปรดลองเลือกไฟล์อื่น",
-            "OK" to "ตกลง",\n            "Brightness" to "ความสว่าง"
+            "OK" to "ตกลง",
+            "Brightness" to "ความสว่าง",
+            "Add custom tab" to "เพิ่มแท็บเอง",
+            "Add to custom tab" to "เพิ่มลงในแท็บที่กำหนดเอง",
+            "Create" to "สร้าง",
+            "Tab name" to "ชื่อแท็บ",
+            "Rename tab" to "เปลี่ยนชื่อแท็บ",
+            "Delete tab" to "ลบแท็บ",
+            "Choose a tab" to "เลือกแท็บ",
+            "This tab already exists." to "มีแท็บนี้อยู่แล้ว",
+            "Create a custom tab first using +." to "โปรดสร้างแท็บเองก่อนโดยกด +",
+            "Add" to "เพิ่ม"
         )
         return translations[value] ?: value
     }
@@ -287,7 +298,7 @@ class MainActivity : Activity() {
     private var allApps: List<LauncherApp> = emptyList()
     private var currentQuery = ""
     private var currentCategory = "All Apps"
-    private val categories = listOf("All Apps", "Games", "Movies & TV", "Music", "Tools")
+    private val builtInCategories = listOf("All Apps", "Games", "Movies & TV", "Music", "Tools")
     private val worker = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
     private val packageRemovedReceiver = object : BroadcastReceiver() {
@@ -687,7 +698,7 @@ class MainActivity : Activity() {
 
     private fun buildCategoryTabs() {
         categoryTabs.removeAllViews()
-        categories.forEach { category ->
+        (builtInCategories + getCustomCategories()).forEach { category ->
             val selected = category == currentCategory
             val tab = TextView(this).apply {
                 text = localized(category)
@@ -710,11 +721,174 @@ class MainActivity : Activity() {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 dp(34)
             ).apply { marginEnd = dp(8) })
+            if (category in getCustomCategories()) {
+                tab.setOnLongClickListener {
+                    showCustomTabActions(category)
+                    true
+                }
+            }
         }
+        val addTab = TextView(this).apply {
+            text = "+"
+            textSize = 20f
+            setTextColor(TEXT)
+            gravity = Gravity.CENTER
+            background = roundedBackground(SURFACE_HIGH, 18)
+            setPadding(dp(14), 0, dp(14), 0)
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { createCustomTab() }
+            setSmoothPressFeedback()
+        }
+        categoryTabs.addView(addTab, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            dp(34)
+        ).apply { marginEnd = dp(8) })
+    }
+
+    private fun getCustomCategories(): List<String> {
+        val raw = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+            .getString("custom_app_tabs", "[]").orEmpty()
+        return try {
+            val array = org.json.JSONArray(raw)
+            (0 until array.length()).map { array.optString(it) }
+                .filter { it.isNotBlank() && it !in builtInCategories }
+                .distinct()
+                .take(40)
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun customTabKey(category: String): String =
+        "custom_tab_apps_" + android.util.Base64.encodeToString(
+            category.toByteArray(Charsets.UTF_8),
+            android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP
+        )
+
+    private fun createCustomTab() {
+        val field = EditText(this).apply {
+            hint = localized("Tab name")
+            setSingleLine(true)
+            setTextColor(TEXT)
+            setHintTextColor(MUTED)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(localized("Add custom tab"))
+            .setView(field)
+            .setNegativeButton(localized("Cancel"), null)
+            .setPositiveButton(localized("Create")) { _, _ ->
+                val name = field.text.toString().trim().take(24)
+                if (name.isBlank()) return@setPositiveButton
+                val existing = getCustomCategories()
+                if (name in builtInCategories || name in existing) {
+                    showMessage("This tab already exists.")
+                    return@setPositiveButton
+                }
+                val updated = org.json.JSONArray().apply {
+                    (existing + name).forEach { put(it) }
+                }
+                getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
+                    .putString("custom_app_tabs", updated.toString())
+                    .apply()
+                currentCategory = name
+                buildCategoryTabs()
+                showFilteredApps(animate = true)
+            }
+            .show()
+    }
+
+    private fun showCustomTabActions(category: String) {
+        val options = arrayOf(localized("Rename tab"), localized("Delete tab"))
+        AlertDialog.Builder(this)
+            .setTitle(category)
+            .setItems(options) { _, which ->
+                if (which == 0) renameCustomTab(category) else deleteCustomTab(category)
+            }
+            .show()
+    }
+
+    private fun renameCustomTab(oldName: String) {
+        val field = EditText(this).apply {
+            setSingleLine(true)
+            setText(oldName)
+            setSelection(text.length)
+            setTextColor(TEXT)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(localized("Rename tab"))
+            .setView(field)
+            .setNegativeButton(localized("Cancel"), null)
+            .setPositiveButton(localized("Save")) { _, _ ->
+                val newName = field.text.toString().trim().take(24)
+                val existing = getCustomCategories()
+                if (newName.isBlank()) return@setPositiveButton
+                if (newName != oldName && (newName in builtInCategories || newName in existing)) {
+                    showMessage("This tab already exists.")
+                    return@setPositiveButton
+                }
+                val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+                val apps = prefs.getString(customTabKey(oldName), "").orEmpty()
+                val updated = org.json.JSONArray().apply {
+                    existing.map { if (it == oldName) newName else it }.forEach { put(it) }
+                }
+                prefs.edit()
+                    .putString("custom_app_tabs", updated.toString())
+                    .putString(customTabKey(newName), apps)
+                    .remove(customTabKey(oldName))
+                    .apply()
+                if (currentCategory == oldName) currentCategory = newName
+                buildCategoryTabs()
+                showFilteredApps(animate = true)
+            }
+            .show()
+    }
+
+    private fun deleteCustomTab(category: String) {
+        val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+        val updated = org.json.JSONArray().apply {
+            getCustomCategories().filter { it != category }.forEach { put(it) }
+        }
+        prefs.edit()
+            .putString("custom_app_tabs", updated.toString())
+            .remove(customTabKey(category))
+            .apply()
+        if (currentCategory == category) currentCategory = "All Apps"
+        buildCategoryTabs()
+        showFilteredApps(animate = true)
+    }
+
+    private fun addAppToCustomTab(app: LauncherApp) {
+        val tabs = getCustomCategories()
+        if (tabs.isEmpty()) {
+            showMessage("Create a custom tab first using +.")
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle(localized("Choose a tab"))
+            .setItems(tabs.toTypedArray()) { _, index ->
+                val tab = tabs[index]
+                val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+                val packages = prefs.getString(customTabKey(tab), "").orEmpty()
+                    .split("|").filter { it.isNotBlank() }.toMutableSet()
+                packages.add(app.packageName)
+                prefs.edit().putString(customTabKey(tab), packages.joinToString("|")).apply()
+                currentCategory = tab
+                buildCategoryTabs()
+                showFilteredApps(animate = true)
+            }
+            .setNegativeButton(localized("Cancel"), null)
+            .show()
     }
 
     private fun matchesCategory(app: LauncherApp, category: String): Boolean {
         if (category == "All Apps") return true
+        if (category in getCustomCategories()) {
+            val packages = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+                .getString(customTabKey(category), "").orEmpty()
+                .split("|").filter { it.isNotBlank() }
+            return app.packageName in packages
+        }
         val label = app.label.lowercase(Locale.ROOT)
         val pkg = app.packageName.lowercase(Locale.ROOT)
         val identity = "$label $pkg"
@@ -921,6 +1095,7 @@ class MainActivity : Activity() {
         val favorite = getFavorites().any { it.packageName == app.packageName }
         val options = arrayOf(
             if (favorite) localized("Remove from favorites") else localized("Add to favorites"),
+            localized("Add to custom tab"),
             localized("App info"),
             localized("Uninstall"),
             localized("Hide app")
@@ -930,9 +1105,10 @@ class MainActivity : Activity() {
             .setItems(options) { _, which ->
                 when (which) {
                     0 -> toggleFavorite(app)
-                    1 -> openAppInfo(app)
-                    2 -> uninstallApp(app)
-                    3 -> hideApp(app)
+                    1 -> addAppToCustomTab(app)
+                    2 -> openAppInfo(app)
+                    3 -> uninstallApp(app)
+                    4 -> hideApp(app)
                 }
             }
             .show()
