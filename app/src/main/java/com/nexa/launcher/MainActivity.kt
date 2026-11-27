@@ -76,7 +76,7 @@ class MainActivity : Activity() {
     private var appearancePreviewUpdater: (() -> Unit)? = null
     private var activityResumed = false
     private var trimLoopPending = false
-    private val videoTrimTick = object : Runnable {
+    private val videoTrimTick: Runnable = object : Runnable {
         override fun run() {
             val player = videoWallpaper ?: return
             if (!activityResumed || videoWallpaper !== player) return
