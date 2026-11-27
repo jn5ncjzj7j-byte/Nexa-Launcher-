@@ -121,6 +121,151 @@ class MainActivity : Activity() {
             if (!trimLoopPending) mainHandler.postDelayed(this, 80)
         }
     }
+    private fun localized(value: String): String {
+        val language = resources.configuration.locales[0].language
+        if (language != "th") return value
+        val translations = mapOf(
+            "Today" to "วันนี้",
+            "Battery --%" to "แบตเตอรี่ --%",
+            "Battery" to "แบตเตอรี่",
+            "Search apps" to "ค้นหาแอป",
+            "Favorites" to "รายการโปรด",
+            "Hold an app to manage it" to "กดแอปค้างไว้เพื่อจัดการ",
+            "Recently opened" to "เปิดล่าสุด",
+            "All apps" to "แอปทั้งหมด",
+            "All Apps" to "แอปทั้งหมด",
+            "Games" to "เกม",
+            "Movies & TV" to "ภาพยนตร์และทีวี",
+            "Music" to "เพลง",
+            "Tools" to "เครื่องมือ",
+            "Loading" to "กำลังโหลด",
+            "Pin apps here" to "ปักหมุดแอปไว้ที่นี่",
+            "Your recent apps appear here" to "แอปที่เปิดล่าสุดจะแสดงที่นี่",
+            "No hidden apps." to "ไม่มีแอปที่ซ่อนอยู่",
+            "Hidden apps" to "แอปที่ซ่อน",
+            "Close" to "ปิด",
+            "Remove from favorites" to "นำออกจากรายการโปรด",
+            "Add to favorites" to "เพิ่มในรายการโปรด",
+            "App info" to "ข้อมูลแอป",
+            "Uninstall" to "ถอนการติดตั้ง",
+            "Hide app" to "ซ่อนแอป",
+            "Unable to open app info." to "ไม่สามารถเปิดข้อมูลแอปได้",
+            "Android could not open the uninstall screen. Try App info, then Uninstall." to "Android ไม่สามารถเปิดหน้าถอนการติดตั้งได้ ลองเปิดข้อมูลแอปแล้วเลือกถอนการติดตั้ง",
+            "Android Settings could not be opened." to "ไม่สามารถเปิดการตั้งค่า Android ได้",
+            "Settings" to "การตั้งค่า",
+            "Make NEXA feel like yours" to "ปรับแต่ง NEXA ในแบบของคุณ",
+            "Done" to "เสร็จสิ้น",
+            "Personalization" to "การปรับแต่ง",
+            "Change the look, colors, and wallpaper" to "เปลี่ยนรูปลักษณ์ สี และวอลเปเปอร์",
+            "Appearance studio" to "ปรับแต่งรูปลักษณ์",
+            "Appearance Studio" to "ปรับแต่งรูปลักษณ์",
+            "Photo and video wallpapers, crop, transparency, and styles" to "วอลเปเปอร์รูปภาพและวิดีโอ การครอบตัด ความโปร่งใส และสไตล์",
+            "App tile background" to "พื้นหลังไอคอนแอป",
+            "Remove or soften the boxes behind app icons" to "ลบหรือปรับความเข้มของพื้นหลังไอคอนแอป",
+            "No boxes" to "ไม่มีพื้นหลัง",
+            "Very subtle" to "จางมาก",
+            "Soft" to "จาง",
+            "Normal" to "ปกติ",
+            "Cancel" to "ยกเลิก",
+            "Display" to "หน้าจอ",
+            "Adjust how NEXA fills your device screen" to "ปรับการแสดงผล NEXA ให้พอดีกับหน้าจอ",
+            "Screen fit" to "การปรับขนาดหน้าจอ",
+            "Use the full display area and remove unused top and bottom space" to "ใช้พื้นที่หน้าจอทั้งหมดและตัดพื้นที่ว่างด้านบนและล่าง",
+            "Full screen" to "เต็มหน้าจอ",
+            "System safe area" to "พื้นที่ปลอดภัยของระบบ",
+            "Launcher" to "ลอนเชอร์",
+            "Manage your apps and home screen" to "จัดการแอปและหน้าจอหลัก",
+            "Refresh apps" to "รีเฟรชแอป",
+            "Rescan installed applications" to "สแกนแอปที่ติดตั้งใหม่",
+            "Refreshing apps…" to "กำลังรีเฟรชแอป…",
+            "Choose which apps appear in NEXA" to "เลือกแอปที่จะแสดงใน NEXA",
+            "Default home app" to "แอปหน้าจอหลักเริ่มต้น",
+            "Choose NEXA as your Android launcher" to "ตั้ง NEXA เป็นลอนเชอร์ Android",
+            "Open Android Settings and choose Default apps, then Home app." to "เปิดการตั้งค่า Android แล้วเลือกแอปเริ่มต้น จากนั้นเลือกแอปหน้าจอหลัก",
+            "System" to "ระบบ",
+            "Android settings and information" to "การตั้งค่าและข้อมูล Android",
+            "Android Settings" to "การตั้งค่า Android",
+            "Open your device settings" to "เปิดการตั้งค่าอุปกรณ์",
+            "About NEXA" to "เกี่ยวกับ NEXA",
+            "Version 0.4.0 · Lightweight Android launcher" to "เวอร์ชัน 0.4.0 · ลอนเชอร์ Android ที่มีน้ำหนักเบา",
+            "NEXA Launcher is designed to keep your home screen fast, smooth, and customizable." to "NEXA Launcher ออกแบบมาเพื่อให้หน้าจอหลักรวดเร็ว ลื่นไหล และปรับแต่งได้",
+            "Your apps  ·  Games  ·  Tools" to "แอปของคุณ · เกม · เครื่องมือ",
+            "Choose photo wallpaper" to "เลือกรูปภาพวอลเปเปอร์",
+            "Choose video wallpaper" to "เลือกวิดีโอวอลเปเปอร์",
+            "Trim video start and end" to "ตัดช่วงเริ่มต้นและสิ้นสุดวิดีโอ",
+            "Video loop mode" to "โหมดวนวิดีโอ",
+            "Video position" to "ตำแหน่งวิดีโอ",
+            "Video rotation" to "การหมุนวิดีโอ",
+            "Video size and screen fit" to "ขนาดวิดีโอและการปรับหน้าจอ",
+            "Crop and position photo" to "ครอบตัดและจัดตำแหน่งรูปภาพ",
+            "Background color" to "สีพื้นหลัง",
+            "Accent color" to "สีเน้น",
+            "Wallpaper visibility" to "ความโปร่งใสของวอลเปเปอร์",
+            "Custom background color" to "กำหนดสีพื้นหลังเอง",
+            "Custom accent color" to "กำหนดสีเน้นเอง",
+            "Remove wallpaper" to "ลบวอลเปเปอร์",
+            "No media picker is available." to "ไม่มีตัวเลือกไฟล์สื่อให้ใช้งาน",
+            "Midnight" to "เที่ยงคืน",
+            "Deep purple" to "ม่วงเข้ม",
+            "Ocean" to "มหาสมุทร",
+            "Forest" to "ป่า",
+            "Warm charcoal" to "เทาถ่านโทนอุ่น",
+            "Pure black" to "ดำสนิท",
+            "Slate" to "สีหินชนวน",
+            "Rose" to "กุหลาบ",
+            "Amethyst" to "อเมทิสต์",
+            "Emerald" to "มรกต",
+            "Sunset" to "พระอาทิตย์ตก",
+            "Navy" to "กรมท่า",
+            "Violet" to "ม่วง",
+            "Cyan" to "ฟ้าไซแอน",
+            "Mint" to "มิ้นต์",
+            "Orange" to "ส้ม",
+            "Pink" to "ชมพู",
+            "Blue" to "น้ำเงิน",
+            "Red" to "แดง",
+            "Gold" to "ทอง",
+            "Lime" to "เขียวมะนาว",
+            "Teal" to "เขียวอมฟ้า",
+            "Lavender" to "ลาเวนเดอร์",
+            "White" to "ขาว",
+            "Subtle" to "นุ่มนวล",
+            "Balanced" to "สมดุล",
+            "Vivid" to "สดใส",
+            "Strong" to "เข้ม",
+            "Choose a video wallpaper first." to "โปรดเลือกวิดีโอวอลเปเปอร์ก่อน",
+            "This video format cannot be read by the device media decoder." to "ตัวถอดรหัสสื่อของอุปกรณ์ไม่รองรับรูปแบบวิดีโอนี้",
+            "Start time in seconds" to "เวลาเริ่มต้น (วินาที)",
+            "End time in seconds" to "เวลาสิ้นสุด (วินาที)",
+            "Trim video wallpaper" to "ตัดวิดีโอวอลเปเปอร์",
+            "Set the section that plays repeatedly. Times are in seconds." to "กำหนดช่วงวิดีโอที่จะเล่นซ้ำ เวลาเป็นวินาที",
+            "Save" to "บันทึก",
+            "Enter a valid range within the video length." to "โปรดระบุช่วงเวลาที่ถูกต้องภายในความยาววิดีโอ",
+            "Video playback" to "การเล่นวิดีโอ",
+            "Loop continuously" to "เล่นวนซ้ำต่อเนื่อง",
+            "Play once" to "เล่นครั้งเดียว",
+            "Horizontal position" to "ตำแหน่งแนวนอน",
+            "Vertical position" to "ตำแหน่งแนวตั้ง",
+            "Reset" to "รีเซ็ต",
+            "Auto fit full screen" to "ปรับให้เต็มหน้าจออัตโนมัติ",
+            "Fit entire video" to "แสดงวิดีโอทั้งหมด",
+            "Video screen fit" to "การปรับวิดีโอให้พอดีหน้าจอ",
+            "Rotate video" to "หมุนวิดีโอ",
+            "Center crop" to "ครอบตัดตรงกลาง",
+            "Fit entire photo" to "แสดงรูปภาพทั้งหมด",
+            "Crop from top" to "ครอบตัดจากด้านบน",
+            "Crop from bottom" to "ครอบตัดจากด้านล่าง",
+            "Photo crop and position" to "การครอบตัดและจัดตำแหน่งรูปภาพ",
+            "Apply" to "นำไปใช้",
+            "Enter a valid color such as #8B7CFF." to "โปรดป้อนรหัสสีที่ถูกต้อง เช่น #8B7CFF",
+            "Background" to "พื้นหลัง",
+            "Visibility" to "ความโปร่งใส",
+            "Unable to use that media file. Try choosing another file." to "ไม่สามารถใช้ไฟล์สื่อนี้ได้ โปรดลองเลือกไฟล์อื่น",
+            "OK" to "ตกลง"
+        )
+        return translations[value] ?: value
+    }
+
     private var selectedBackground = BACKGROUND
     private var selectedAccent = ACCENT
     private var batteryReceiverRegistered = false
@@ -233,7 +378,7 @@ class MainActivity : Activity() {
         }
         heroInfo.addView(date, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         batteryLabel = TextView(this).apply {
-            text = "Battery --%"
+            text = localized("Battery --%")
             textSize = 12f
             setTextColor(MUTED)
             gravity = Gravity.CENTER
@@ -256,7 +401,7 @@ class MainActivity : Activity() {
         hero.translationY = dp(7).toFloat()
 
         search = EditText(this).apply {
-            hint = "Search apps"
+            hint = localized("Search apps")
             setHintTextColor(MUTED)
             setTextColor(TEXT)
             textSize = 15f
@@ -271,7 +416,7 @@ class MainActivity : Activity() {
             dp(52)
         ).apply { bottomMargin = dp(20) })
 
-        launcherRoot.addView(sectionHeader("Favorites", "Hold an app to manage it"))
+        launcherRoot.addView(sectionHeader(localized("Favorites"), localized("Hold an app to manage it")))
         favoriteContainer = horizontalStrip()
         launcherRoot.addView(favoriteContainer, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -281,7 +426,7 @@ class MainActivity : Activity() {
             bottomMargin = dp(18)
         })
 
-        launcherRoot.addView(sectionHeader("Recently opened", ""))
+        launcherRoot.addView(sectionHeader(localized("Recently opened"), ""))
         recentContainer = horizontalStrip()
         launcherRoot.addView(recentContainer, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -296,7 +441,7 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
         }
         appsHeader.addView(
-            sectionTitle("All apps"),
+            sectionTitle(localized("All apps")),
             LinearLayout.LayoutParams(0, dp(32), 1f)
         )
         appCount = TextView(this).apply {
@@ -403,14 +548,14 @@ class MainActivity : Activity() {
         val level = intent?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) ?: -1
         val scale = intent?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1) ?: -1
         if (level < 0 || scale <= 0) {
-            batteryLabel.text = "Battery --%"
+            batteryLabel.text = localized("Battery --%")
             return
         }
         val percent = (level * 100f / scale).toInt()
         val status = intent?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
         val charging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING ||
             status == android.os.BatteryManager.BATTERY_STATUS_FULL
-        batteryLabel.text = if (charging) "⚡ $percent%" else "Battery $percent%"
+        batteryLabel.text = if (charging) "⚡ $percent%" else "${localized("Battery")} $percent%"
     }
 
     @Suppress("DEPRECATION")
@@ -470,7 +615,7 @@ class MainActivity : Activity() {
     }
 
     private fun loadApps() {
-        appCount.text = "Loading"
+        appCount.text = localized("Loading")
         worker.execute {
             val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
             val loaded = packageManager.queryIntentActivities(intent, 0)
@@ -506,9 +651,9 @@ class MainActivity : Activity() {
         }
         appAdapter.submitList(filtered, animate)
         appCount.text = if (query.isBlank()) {
-            "${filtered.size} apps"
+            "${filtered.size} ${localized("apps")}"
         } else {
-            "${filtered.size} results"
+            "${filtered.size} ${localized("results")}"
         }
     }
 
@@ -517,7 +662,7 @@ class MainActivity : Activity() {
         categories.forEach { category ->
             val selected = category == currentCategory
             val tab = TextView(this).apply {
-                text = category
+                text = localized(category)
                 textSize = 12f
                 typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
                 setTextColor(if (selected) BACKGROUND else TEXT)
@@ -600,7 +745,7 @@ class MainActivity : Activity() {
         container.removeAllViews()
         if (apps.isEmpty()) {
             container.addView(TextView(this).apply {
-                text = emptyText
+                text = localized(emptyText)
                 textSize = 12f
                 setTextColor(MUTED)
                 gravity = Gravity.CENTER_VERTICAL
@@ -667,7 +812,7 @@ class MainActivity : Activity() {
             return
         }
         AlertDialog.Builder(this)
-            .setTitle("Hidden apps")
+            .setTitle(localized("Hidden apps"))
             .setItems(hidden.map { it.label }.toTypedArray()) { _, index ->
                 val selected = hidden[index]
                 val updated = getHiddenPackages().toMutableSet()
@@ -678,7 +823,7 @@ class MainActivity : Activity() {
                 showFilteredApps()
                 showHiddenApps()
             }
-            .setNegativeButton("Close", null)
+            .setNegativeButton(localized("Close"), null)
             .show()
     }
 
@@ -721,10 +866,10 @@ class MainActivity : Activity() {
     private fun showAppActions(app: LauncherApp) {
         val favorite = getFavorites().any { it.packageName == app.packageName }
         val options = arrayOf(
-            if (favorite) "Remove from favorites" else "Add to favorites",
-            "App info",
-            "Uninstall",
-            "Hide app"
+            if (favorite) localized("Remove from favorites") else localized("Add to favorites"),
+            localized("App info"),
+            localized("Uninstall"),
+            localized("Hide app")
         )
         AlertDialog.Builder(this)
             .setTitle(app.label)
@@ -796,19 +941,19 @@ class MainActivity : Activity() {
             setPadding(dp(14), 0, 0, 0)
         }
         heading.addView(TextView(this).apply {
-            text = "Settings"
+            text = localized("Settings")
             textSize = 25f
             typeface = Typeface.create("sans-serif", Typeface.BOLD)
             setTextColor(TEXT)
         })
         heading.addView(TextView(this).apply {
-            text = "Make NEXA feel like yours"
+            text = localized("Make NEXA feel like yours")
             textSize = 12f
             setTextColor(MUTED)
         })
         header.addView(heading, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         val done = TextView(this).apply {
-            text = "Done"
+            text = localized("Done")
             textSize = 13f
             setTextColor(TEXT)
             gravity = Gravity.CENTER
@@ -829,7 +974,7 @@ class MainActivity : Activity() {
         }
         fun section(name: String, detail: String) {
             content.addView(TextView(this).apply {
-                text = name
+                text = localized(name)
                 textSize = 17f
                 typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
                 setTextColor(TEXT)
@@ -838,7 +983,7 @@ class MainActivity : Activity() {
                 bottomMargin = dp(4)
             })
             content.addView(TextView(this).apply {
-                text = detail
+                text = localized(detail)
                 textSize = 12f
                 setTextColor(MUTED)
             }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
@@ -856,13 +1001,13 @@ class MainActivity : Activity() {
                 setSmoothPressFeedback()
             }
             row.addView(TextView(this).apply {
-                text = title
+                text = localized(title)
                 textSize = 14f
                 typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
                 setTextColor(TEXT)
             })
             row.addView(TextView(this).apply {
-                text = detail
+                text = localized(detail)
                 textSize = 11f
                 setTextColor(MUTED)
             }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
@@ -875,28 +1020,28 @@ class MainActivity : Activity() {
         section("Personalization", "Change the look, colors, and wallpaper")
         item("Appearance studio", "Photo and video wallpapers, crop, transparency, and styles") { showAppearanceSettings() }
         item("App tile background", "Remove or soften the boxes behind app icons") {
-            val choices = arrayOf("No boxes", "Very subtle", "Soft", "Normal")
+            val choices = arrayOf("No boxes", "Very subtle", "Soft", "Normal").map(::localized).toTypedArray()
             val values = intArrayOf(0, 28, 65, 115)
             val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
             val current = prefs.getInt("app_card_alpha", 65)
             val selected = values.indices.minByOrNull { kotlin.math.abs(values[it] - current) } ?: 2
             AlertDialog.Builder(this)
-                .setTitle("App tile background")
+                .setTitle(localized("App tile background"))
                 .setSingleChoiceItems(choices, selected) { dialog, which ->
                     prefs.edit().putInt("app_card_alpha", values[which]).apply()
                     appAdapter.notifyDataSetChanged()
                     dialog.dismiss()
                 }
-                .setNegativeButton("Cancel", null)
+                .setNegativeButton(localized("Cancel"), null)
                 .show()
         }
         section("Display", "Adjust how NEXA fills your device screen")
         item("Screen fit", "Use the full display area and remove unused top and bottom space") {
-            val choices = arrayOf("Full screen", "System safe area")
+            val choices = arrayOf("Full screen", "System safe area").map(::localized).toTypedArray()
             val current = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
                 .getBoolean("full_screen_layout", true)
             AlertDialog.Builder(this)
-                .setTitle("Screen fit")
+                .setTitle(localized("Screen fit"))
                 .setSingleChoiceItems(choices, if (current) 0 else 1) { dialog, which ->
                     getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
                         .putBoolean("full_screen_layout", which == 0)
@@ -906,11 +1051,11 @@ class MainActivity : Activity() {
                     window.decorView.post { hideSystemBars() }
                     dialog.dismiss()
                 }
-                .setNegativeButton("Cancel", null)
+                .setNegativeButton(localized("Cancel"), null)
                 .show()
         }
         section("Launcher", "Manage your apps and home screen")
-        item("Refresh apps", "Rescan installed applications") { loadApps(); showMessage("Refreshing apps…") }
+        item("Refresh apps", "Rescan installed applications") { loadApps(); showMessage(localized("Refreshing apps…")) }
         item("Hidden apps", "Choose which apps appear in NEXA") { showHiddenApps() }
         item("Default home app", "Choose NEXA as your Android launcher") {
             try {
@@ -963,7 +1108,7 @@ class MainActivity : Activity() {
             setPadding(0, dp(10), 0, dp(4))
         })
         previewOverlay.addView(TextView(this).apply {
-            text = "Your apps  ·  Games  ·  Tools"
+            text = localized("Your apps  ·  Games  ·  Tools")
             textSize = 10f
             setTextColor(TEXT)
             background = roundedBackground(prefs.getInt("accent_color", ACCENT), 10)
@@ -1039,7 +1184,7 @@ class MainActivity : Activity() {
         )
         options.forEachIndexed { index, title ->
             val row = TextView(this).apply {
-                text = title
+                text = localized(title)
                 textSize = 14f
                 setTextColor(TEXT)
                 gravity = Gravity.CENTER_VERTICAL
@@ -1145,9 +1290,9 @@ class MainActivity : Activity() {
             addView(panel)
         }
         AlertDialog.Builder(this)
-            .setTitle("Appearance Studio")
+            .setTitle(localized("Appearance Studio"))
             .setView(scroll)
-            .setNegativeButton("Close", null)
+            .setNegativeButton(localized("Close"), null)
             .show()
     }
 
@@ -1178,7 +1323,7 @@ class MainActivity : Activity() {
                 setPadding(0, dp(8), 0, dp(3))
             })
             addView(TextView(this@MainActivity).apply {
-                text = "Your apps  ·  Games  ·  Tools"
+                text = localized("Your apps  ·  Games  ·  Tools")
                 textSize = 10f
                 setTextColor(TEXT)
                 setPadding(dp(8), dp(5), dp(8), dp(5))
@@ -1263,13 +1408,13 @@ class MainActivity : Activity() {
         }
         val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
         val startField = EditText(this).apply {
-            hint = "Start time in seconds"
+            hint = localized("Start time in seconds")
             inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
             setSingleLine(true)
             setText((prefs.getInt("video_trim_start", 0) / 1000f).toString().trimEnd('0').trimEnd('.'))
         }
         val endField = EditText(this).apply {
-            hint = "End time in seconds"
+            hint = localized("End time in seconds")
             inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
             setSingleLine(true)
             val saved = prefs.getInt("video_trim_end", 0)
@@ -1279,7 +1424,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(22), dp(8), dp(22), 0)
             addView(TextView(this@MainActivity).apply {
-                text = "Video length: %.1f seconds".format(Locale.US, duration / 1000f)
+                text = localized("Video length: %.1f seconds").format(Locale.US, duration / 1000f)
                 setTextColor(MUTED)
                 textSize = 12f
             })
@@ -1287,10 +1432,10 @@ class MainActivity : Activity() {
             addView(endField)
         }
         AlertDialog.Builder(this)
-            .setTitle("Trim video wallpaper")
-            .setMessage("Set the section that plays repeatedly. Times are in seconds.")
+            .setTitle(localized("Trim video wallpaper"))
+            .setMessage(localized("Set the section that plays repeatedly. Times are in seconds."))
             .setView(panel)
-            .setPositiveButton("Save") { _, _ ->
+            .setPositiveButton(localized("Save")) { _, _ ->
                 val start = (startField.text.toString().toFloatOrNull()?.times(1000f))?.toInt()
                 val end = (endField.text.toString().toFloatOrNull()?.times(1000f))?.toInt()
                 if (start == null || end == null || start < 0 || end <= start || end > duration) {
@@ -1300,7 +1445,7 @@ class MainActivity : Activity() {
                     applySavedAppearance()
                 }
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(localized("Cancel"), null)
             .show()
     }
 
@@ -1308,14 +1453,14 @@ class MainActivity : Activity() {
         val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
         val loop = prefs.getBoolean("video_loop", true)
         AlertDialog.Builder(this)
-            .setTitle("Video playback")
-            .setSingleChoiceItems(arrayOf("Loop continuously", "Play once"), if (loop) 0 else 1) { dialog, which ->
+            .setTitle(localized("Video playback"))
+            .setSingleChoiceItems(arrayOf("Loop continuously", "Play once").map(::localized).toTypedArray(), if (loop) 0 else 1) { dialog, which ->
                 prefs.edit().putBoolean("video_loop", which == 0).apply()
                 applySavedAppearance()
                 appearancePreviewUpdater?.invoke()
                 dialog.dismiss()
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(localized("Cancel"), null)
             .show()
     }
 
@@ -1325,7 +1470,7 @@ class MainActivity : Activity() {
         val panel = settingPanel(preview)
         fun addAxis(label: String, key: String) {
             panel.addView(TextView(this).apply {
-                text = label
+                text = localized(label)
                 setTextColor(TEXT)
                 textSize = 13f
             })
@@ -1348,13 +1493,13 @@ class MainActivity : Activity() {
                 })
             })
         }
-        addAxis("Horizontal position", "video_position_x")
-        addAxis("Vertical position", "video_position_y")
+        addAxis(localized("Horizontal position"), "video_position_x")
+        addAxis(localized("Vertical position"), "video_position_y")
         AlertDialog.Builder(this)
-            .setTitle("Video position")
+            .setTitle(localized("Video position"))
             .setView(ScrollView(this).apply { addView(panel) })
-            .setPositiveButton("Done", null)
-            .setNeutralButton("Reset") { _, _ ->
+            .setPositiveButton(localized("Done"), null)
+            .setNeutralButton(localized("Reset")) { _, _ ->
                 prefs.edit().putInt("video_position_x", 0).putInt("video_position_y", 0).apply()
                 applySavedAppearance()
                 refresh()
@@ -1366,9 +1511,9 @@ class MainActivity : Activity() {
         val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
         val (preview, refresh) = createSettingPreview()
         val panel = settingPanel(preview)
-        arrayOf("Auto fit full screen", "Fit entire video").forEachIndexed { index, label ->
+        arrayOf("Auto fit full screen", "Fit entire video").map(::localized).toTypedArray().forEachIndexed { index, label ->
             val row = TextView(this).apply {
-                text = label
+                text = localized(label)
                 textSize = 14f
                 setTextColor(TEXT)
                 gravity = Gravity.CENTER_VERTICAL
@@ -1383,9 +1528,9 @@ class MainActivity : Activity() {
             panel.addView(row, LinearLayout.LayoutParams(-1, dp(46)).apply { bottomMargin = dp(6) })
         }
         AlertDialog.Builder(this)
-            .setTitle("Video screen fit")
+            .setTitle(localized("Video screen fit"))
             .setView(panel)
-            .setPositiveButton("Done", null)
+            .setPositiveButton(localized("Done"), null)
             .show()
     }
 
@@ -1409,9 +1554,9 @@ class MainActivity : Activity() {
             }, LinearLayout.LayoutParams(-1, dp(44)).apply { bottomMargin = dp(5) })
         }
         AlertDialog.Builder(this)
-            .setTitle("Rotate video")
+            .setTitle(localized("Rotate video"))
             .setView(panel)
-            .setPositiveButton("Done", null)
+            .setPositiveButton(localized("Done"), null)
             .show()
     }
 
@@ -1419,9 +1564,9 @@ class MainActivity : Activity() {
         val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
         val (preview, refresh) = createSettingPreview()
         val panel = settingPanel(preview)
-        arrayOf("Center crop", "Fit entire photo", "Crop from top", "Crop from bottom").forEachIndexed { index, label ->
+        arrayOf("Center crop", "Fit entire photo", "Crop from top", "Crop from bottom").map(::localized).toTypedArray().forEachIndexed { index, label ->
             panel.addView(TextView(this).apply {
-                text = label
+                text = localized(label)
                 textSize = 14f
                 setTextColor(TEXT)
                 gravity = Gravity.CENTER_VERTICAL
@@ -1435,9 +1580,9 @@ class MainActivity : Activity() {
             }, LinearLayout.LayoutParams(-1, dp(44)).apply { bottomMargin = dp(5) })
         }
         AlertDialog.Builder(this)
-            .setTitle("Photo crop and position")
+            .setTitle(localized("Photo crop and position"))
             .setView(panel)
-            .setPositiveButton("Done", null)
+            .setPositiveButton(localized("Done"), null)
             .show()
     }
 
@@ -1467,7 +1612,7 @@ class MainActivity : Activity() {
         AlertDialog.Builder(this)
             .setTitle(title)
             .setView(panel)
-            .setPositiveButton("Apply") { _, _ ->
+            .setPositiveButton(localized("Apply")) { _, _ ->
                 try {
                     val value = field.text.toString().trim()
                     val color = Color.parseColor(if (value.startsWith("#")) value else "#$value")
@@ -1477,7 +1622,7 @@ class MainActivity : Activity() {
                     showMessage("Enter a valid color such as #8B7CFF.")
                 }
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(localized("Cancel"), null)
             .show()
     }
 
@@ -1486,7 +1631,7 @@ class MainActivity : Activity() {
         val panel = settingPanel(preview)
         colors.forEach { (label, color) ->
             panel.addView(TextView(this).apply {
-                text = label
+                text = localized(label)
                 textSize = 14f
                 setTextColor(TEXT)
                 gravity = Gravity.CENTER_VERTICAL
@@ -1505,7 +1650,7 @@ class MainActivity : Activity() {
         AlertDialog.Builder(this)
             .setTitle(title)
             .setView(ScrollView(this).apply { addView(panel) })
-            .setPositiveButton("Done", null)
+            .setPositiveButton(localized("Done"), null)
             .show()
     }
 
@@ -1560,6 +1705,20 @@ class MainActivity : Activity() {
                     if (endAt > startAt) {
                         mainHandler.removeCallbacks(videoTrimTick)
                         mainHandler.postDelayed(videoTrimTick, 150)
+                    }
+                }
+                setOnCompletionListener {
+                    val loopEnabled = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+                        .getBoolean("video_loop", true)
+                    if (loopEnabled && endAt > startAt) {
+                        seekTo(startAt)
+                        postDelayed({
+                            if (videoWallpaper === this@apply && activityResumed && !isFinishing && !isDestroyed) {
+                                start()
+                                mainHandler.removeCallbacks(videoTrimTick)
+                                mainHandler.postDelayed(videoTrimTick, 100)
+                            }
+                        }, 180)
                     }
                 }
             }
@@ -1629,8 +1788,8 @@ class MainActivity : Activity() {
 
     private fun showMessage(message: String) {
         AlertDialog.Builder(this)
-            .setMessage(message)
-            .setPositiveButton("OK", null)
+            .setMessage(localized(message))
+            .setPositiveButton(localized("OK"), null)
             .show()
     }
 
@@ -1642,7 +1801,7 @@ class MainActivity : Activity() {
         row.addView(sectionTitle(title), LinearLayout.LayoutParams(0, dp(28), 1f))
         if (detail.isNotBlank()) {
             row.addView(TextView(this).apply {
-                text = detail
+                text = localized(detail)
                 textSize = 10f
                 setTextColor(MUTED)
             })
