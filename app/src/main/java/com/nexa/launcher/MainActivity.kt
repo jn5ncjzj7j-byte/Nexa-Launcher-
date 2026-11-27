@@ -36,6 +36,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.HorizontalScrollView
 import android.widget.ScrollView
+import android.widget.SeekBar
 import android.widget.TextView
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.GridLayoutManager
@@ -78,7 +79,10 @@ class MainActivity : Activity() {
             val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
             val start = prefs.getInt("video_trim_start", 0)
             val end = prefs.getInt("video_trim_end", 0)
-            if (end > start && player.isPlaying && player.currentPosition >= end) player.seekTo(start)
+            if (end > start && player.isPlaying && player.currentPosition >= end) {
+                val loop = getSharedPreferences("nexa_launcher", MODE_PRIVATE).getBoolean("video_loop", true)
+                if (loop) player.seekTo(start) else player.pause()
+            }
             if (player.isPlaying) mainHandler.postDelayed(this, 120)
         }
     }
@@ -892,6 +896,9 @@ class MainActivity : Activity() {
             "Choose photo wallpaper",
             "Choose video wallpaper (common video formats)",
             "Trim video start and end",
+            "Video loop mode",
+            "Video position",
+            "Video rotation",
             "Crop and position photo",
             "Background color",
             "Accent color",
@@ -929,8 +936,11 @@ class MainActivity : Activity() {
                         }
                     }
                     2 -> showVideoTrimEditor()
-                    3 -> showPhotoCropOptions()
-                    4 -> showColorChoices(
+                    3 -> showVideoLoopOptions()
+                    4 -> showVideoPositionOptions()
+                    5 -> showVideoRotationOptions()
+                    6 -> showPhotoCropOptions()
+                    7 -> showColorChoices(
                         "Background color",
                         listOf(
                             "Midnight" to 0xFF0D0F14.toInt(),
@@ -953,7 +963,7 @@ class MainActivity : Activity() {
                             .apply()
                         applySavedAppearance()
                     }
-                    5 -> showColorChoices(
+                    8 -> showColorChoices(
                         "Accent color",
                         listOf(
                             "Violet" to 0xFF9D8CFF.toInt(),
@@ -976,7 +986,7 @@ class MainActivity : Activity() {
                             .apply()
                         buildCategoryTabs()
                     }
-                    6 -> showColorChoices(
+                    9 -> showColorChoices(
                         "Wallpaper visibility",
                         listOf("Subtle" to 45, "Balanced" to 82, "Vivid" to 135, "Strong" to 190)
                             .map { it.first to it.second }
@@ -986,21 +996,21 @@ class MainActivity : Activity() {
                             .apply()
                         applySavedAppearance()
                     }
-                    7 -> showCustomColor("Custom background color", selectedBackground) { color ->
+                    10 -> showCustomColor("Custom background color", selectedBackground) { color ->
                         selectedBackground = color
                         getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
                             .putInt("background_color", color)
                             .apply()
                         applySavedAppearance()
                     }
-                    8 -> showCustomColor("Custom accent color", selectedAccent) { color ->
+                    11 -> showCustomColor("Custom accent color", selectedAccent) { color ->
                         selectedAccent = color
                         getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
                             .putInt("accent_color", color)
                             .apply()
                         buildCategoryTabs()
                     }
-                    9 -> {
+                    12 -> {
                         getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
                             .remove("wallpaper_uri")
                             .remove("video_wallpaper_uri")
@@ -1076,6 +1086,79 @@ class MainActivity : Activity() {
             .show()
     }
 
+    private fun showVideoLoopOptions() {
+        val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+        val loop = prefs.getBoolean("video_loop", true)
+        AlertDialog.Builder(this)
+            .setTitle("Video playback")
+            .setSingleChoiceItems(arrayOf("Loop continuously", "Play once"), if (loop) 0 else 1) { dialog, which ->
+                prefs.edit().putBoolean("video_loop", which == 0).apply()
+                applySavedAppearance()
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showVideoPositionOptions() {
+        val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(22), dp(8), dp(22), 0)
+        }
+        fun addAxis(label: String, key: String) {
+            panel.addView(TextView(this).apply {
+                text = label
+                setTextColor(TEXT)
+                textSize = 13f
+            })
+            panel.addView(SeekBar(this).apply {
+                max = 200
+                progress = prefs.getInt(key, 0) + 100
+                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                        if (!fromUser) return
+                        val value = progress - 100
+                        prefs.edit().putInt(key, value).apply()
+                        videoWallpaper?.let {
+                            if (key == "video_position_x") it.translationX = value * resources.displayMetrics.widthPixels / 100f
+                            else it.translationY = value * resources.displayMetrics.heightPixels / 100f
+                        }
+                    }
+                    override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                    override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+                })
+            })
+        }
+        addAxis("Horizontal position", "video_position_x")
+        addAxis("Vertical position", "video_position_y")
+        AlertDialog.Builder(this)
+            .setTitle("Video position")
+            .setMessage("Move the video behind the launcher. Changes preview immediately.")
+            .setView(panel)
+            .setPositiveButton("Done", null)
+            .setNeutralButton("Reset") { _, _ ->
+                prefs.edit().putInt("video_position_x", 0).putInt("video_position_y", 0).apply()
+                applySavedAppearance()
+            }
+            .show()
+    }
+
+    private fun showVideoRotationOptions() {
+        val choices = arrayOf("0°", "90°", "180°", "270°")
+        val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+        val current = (prefs.getInt("video_rotation", 0) / 90).coerceIn(0, 3)
+        AlertDialog.Builder(this)
+            .setTitle("Rotate video")
+            .setSingleChoiceItems(choices, current) { dialog, which ->
+                prefs.edit().putInt("video_rotation", which * 90).apply()
+                videoWallpaper?.rotation = (which * 90).toFloat()
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     private fun showPhotoCropOptions() {
         val choices = arrayOf("Center crop", "Fit entire photo", "Crop from top", "Crop from bottom")
         val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
@@ -1145,15 +1228,20 @@ class MainActivity : Activity() {
             val player = VideoView(this).apply {
                 setVideoURI(Uri.parse(videoUri))
                 setOnPreparedListener { media ->
-                    media.isLooping = false
-                    media.setVolume(0f, 0f)
                     val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
                     val startAt = prefs.getInt("video_trim_start", 0)
                     val endAt = prefs.getInt("video_trim_end", 0)
-                    seekTo(startAt)
+                    media.isLooping = prefs.getBoolean("video_loop", true) && endAt <= startAt
+                    media.setVolume(0f, 0f)
+                    rotation = prefs.getInt("video_rotation", 0).toFloat()
+                    scaleX = prefs.getFloat("video_scale", 1f)
+                    scaleY = prefs.getFloat("video_scale", 1f)
+                    translationX = prefs.getInt("video_position_x", 0).toFloat() * resources.displayMetrics.widthPixels / 100f
+                    translationY = prefs.getInt("video_position_y", 0).toFloat() * resources.displayMetrics.heightPixels / 100f
+                    if (startAt > 0) seekTo(startAt)
                     start()
                     mainHandler.removeCallbacks(videoTrimTick)
-                    mainHandler.post(videoTrimTick)
+                    if (endAt > startAt) mainHandler.post(videoTrimTick)
                 }
             }
             videoWallpaper = player
