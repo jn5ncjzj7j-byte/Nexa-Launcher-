@@ -1013,22 +1013,12 @@ private class AppAdapter(
             holder.animationGeneration = animationGeneration
             holder.itemView.alpha = 0f
             holder.itemView.translationY = context.dp(9).toFloat()
-            if (Build.VERSION.SDK_INT >= 31) {
-                holder.itemView.renderEffect = android.graphics.RenderEffect.createBlurEffect(
-                    2.2f,
-                    2.2f,
-                    android.graphics.Shader.TileMode.CLAMP
-                )
-            }
             holder.itemView.animate()
                 .alpha(1f)
                 .translationY(0f)
                 .setStartDelay(position * 18L)
                 .setDuration(250)
                 .setInterpolator(NEXA_EASE)
-                .withEndAction {
-                    if (Build.VERSION.SDK_INT >= 31) holder.itemView.renderEffect = null
-                }
                 .start()
         } else {
             holder.animationGeneration = animationGeneration
@@ -1072,7 +1062,6 @@ private class AppAdapter(
         holder.itemView.translationY = 0f
         holder.itemView.scaleX = 1f
         holder.itemView.scaleY = 1f
-        if (Build.VERSION.SDK_INT >= 31) holder.itemView.renderEffect = null
         holder.icon.setImageDrawable(null)
         super.onViewRecycled(holder)
     }
