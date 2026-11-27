@@ -74,17 +74,33 @@ class MainActivity : Activity() {
     private lateinit var screenRoot: FrameLayout
     private var videoWallpaper: VideoView? = null
     private var appearancePreviewUpdater: (() -> Unit)? = null
+    private var activityResumed = false
+    private var trimLoopPending = false
     private val videoTrimTick = object : Runnable {
         override fun run() {
             val player = videoWallpaper ?: return
             val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
             val start = prefs.getInt("video_trim_start", 0)
             val end = prefs.getInt("video_trim_end", 0)
+            val loop = prefs.getBoolean("video_loop", true)
             if (end > start && player.isPlaying && player.currentPosition >= end) {
-                val loop = getSharedPreferences("nexa_launcher", MODE_PRIVATE).getBoolean("video_loop", true)
-                if (loop) player.seekTo(start) else player.pause()
+                if (loop && !trimLoopPending) {
+                    trimLoopPending = true
+                    player.pause()
+                    player.seekTo(start)
+                    mainHandler.postDelayed({
+                        trimLoopPending = false
+                        if (videoWallpaper === player && activityResumed && !isFinishing && !isDestroyed) {
+                            player.start()
+                            mainHandler.removeCallbacks(this)
+                            mainHandler.post(this)
+                        }
+                    }, 250)
+                } else if (!loop) {
+                    player.pause()
+                }
             }
-            if (player.isPlaying) mainHandler.postDelayed(this, 120)
+            if (player.isPlaying && !trimLoopPending) mainHandler.postDelayed(this, 80)
         }
     }
     private var selectedBackground = BACKGROUND
@@ -397,6 +413,7 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        activityResumed = true
         videoWallpaper?.start()
         if (videoWallpaper?.isPlaying == true) {
             mainHandler.removeCallbacks(videoTrimTick)
@@ -412,6 +429,7 @@ class MainActivity : Activity() {
     }
 
     override fun onPause() {
+        activityResumed = false
         super.onPause()
         mainHandler.removeCallbacks(clockTick)
         mainHandler.removeCallbacks(videoTrimTick)
@@ -1482,6 +1500,8 @@ class MainActivity : Activity() {
             screenRoot.removeView(it)
             it.stopPlayback()
         }
+        trimLoopPending = false
+        mainHandler.removeCallbacks(videoTrimTick)
         videoWallpaper = null
         if (!videoUri.isNullOrBlank()) {
             launcherRoot.setBackgroundColor(Color.TRANSPARENT)
