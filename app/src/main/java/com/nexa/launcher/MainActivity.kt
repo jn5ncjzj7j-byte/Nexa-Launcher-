@@ -320,13 +320,35 @@ class MainActivity : Activity() {
             }
         }
     }
+    private var lastClockText = ""
     private val clockTick = object : Runnable {
         override fun run() {
             if (::clock.isInitialized) {
                 val use24Hour = getSharedPreferences("nexa_launcher", MODE_PRIVATE).getBoolean("clock_24_hour", false)
-                clock.text = SimpleDateFormat(if (use24Hour) "HH:mm" else "h:mm a", Locale.getDefault()).format(Date())
+                val currentTime = SimpleDateFormat(if (use24Hour) "HH:mm" else "h:mm a", Locale.getDefault()).format(Date())
+                if (lastClockText.isEmpty()) {
+                    clock.text = currentTime
+                } else if (lastClockText != currentTime) {
+                    clock.animate().cancel()
+                    clock.animate()
+                        .alpha(0f)
+                        .translationY(dp(20).toFloat())
+                        .setDuration(130)
+                        .withEndAction {
+                            clock.text = currentTime
+                            clock.translationY = -dp(20).toFloat()
+                            clock.animate()
+                                .alpha(1f)
+                                .translationY(0f)
+                                .setDuration(230)
+                                .setInterpolator(NEXA_EASE)
+                                .start()
+                        }
+                        .start()
+                }
+                lastClockText = currentTime
                 date.text = SimpleDateFormat("EEEE, d MMMM", Locale.getDefault()).format(Date())
-                mainHandler.postDelayed(this, 30_000)
+                mainHandler.postDelayed(this, 1000)
             }
         }
     }
