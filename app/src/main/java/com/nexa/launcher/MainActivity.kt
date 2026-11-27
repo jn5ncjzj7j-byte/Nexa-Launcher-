@@ -899,6 +899,7 @@ class MainActivity : Activity() {
             "Video loop mode",
             "Video position",
             "Video rotation",
+            "Auto fit video to screen",
             "Crop and position photo",
             "Background color",
             "Accent color",
@@ -939,8 +940,9 @@ class MainActivity : Activity() {
                     3 -> showVideoLoopOptions()
                     4 -> showVideoPositionOptions()
                     5 -> showVideoRotationOptions()
-                    6 -> showPhotoCropOptions()
-                    7 -> showColorChoices(
+                    6 -> showVideoAutoFitOptions()
+                    7 -> showPhotoCropOptions()
+                    8 -> showColorChoices(
                         "Background color",
                         listOf(
                             "Midnight" to 0xFF0D0F14.toInt(),
@@ -963,7 +965,7 @@ class MainActivity : Activity() {
                             .apply()
                         applySavedAppearance()
                     }
-                    8 -> showColorChoices(
+                    9 -> showColorChoices(
                         "Accent color",
                         listOf(
                             "Violet" to 0xFF9D8CFF.toInt(),
@@ -986,7 +988,7 @@ class MainActivity : Activity() {
                             .apply()
                         buildCategoryTabs()
                     }
-                    9 -> showColorChoices(
+                    10 -> showColorChoices(
                         "Wallpaper visibility",
                         listOf("Subtle" to 45, "Balanced" to 82, "Vivid" to 135, "Strong" to 190)
                             .map { it.first to it.second }
@@ -996,21 +998,21 @@ class MainActivity : Activity() {
                             .apply()
                         applySavedAppearance()
                     }
-                    10 -> showCustomColor("Custom background color", selectedBackground) { color ->
+                    11 -> showCustomColor("Custom background color", selectedBackground) { color ->
                         selectedBackground = color
                         getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
                             .putInt("background_color", color)
                             .apply()
                         applySavedAppearance()
                     }
-                    11 -> showCustomColor("Custom accent color", selectedAccent) { color ->
+                    12 -> showCustomColor("Custom accent color", selectedAccent) { color ->
                         selectedAccent = color
                         getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
                             .putInt("accent_color", color)
                             .apply()
                         buildCategoryTabs()
                     }
-                    12 -> {
+                    13 -> {
                         getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
                             .remove("wallpaper_uri")
                             .remove("video_wallpaper_uri")
@@ -1144,6 +1146,21 @@ class MainActivity : Activity() {
             .show()
     }
 
+    private fun showVideoAutoFitOptions() {
+        val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+        val enabled = prefs.getBoolean("video_auto_fit", true)
+        AlertDialog.Builder(this)
+            .setTitle("Video screen fit")
+            .setMessage("Auto fit scales the video to cover the full launcher screen. Some edges may be cropped to avoid black bars, especially after rotation.")
+            .setSingleChoiceItems(arrayOf("Auto fit full screen", "Fit entire video"), if (enabled) 0 else 1) { dialog, which ->
+                prefs.edit().putBoolean("video_auto_fit", which == 0).apply()
+                applySavedAppearance()
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     private fun showVideoRotationOptions() {
         val choices = arrayOf("0°", "90°", "180°", "270°")
         val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
@@ -1233,9 +1250,26 @@ class MainActivity : Activity() {
                     val endAt = prefs.getInt("video_trim_end", 0)
                     media.isLooping = prefs.getBoolean("video_loop", true) && endAt <= startAt
                     media.setVolume(0f, 0f)
-                    rotation = prefs.getInt("video_rotation", 0).toFloat()
-                    scaleX = prefs.getFloat("video_scale", 1f)
-                    scaleY = prefs.getFloat("video_scale", 1f)
+                    val rotationAngle = prefs.getInt("video_rotation", 0).toFloat()
+                    rotation = rotationAngle
+                    val autoFit = prefs.getBoolean("video_auto_fit", true)
+                    if (autoFit) {
+                        post {
+                            val rotated = rotationAngle.toInt() % 180 != 0
+                            val sourceWidth = if (rotated) media.videoHeight.toFloat() else media.videoWidth.toFloat()
+                            val sourceHeight = if (rotated) media.videoWidth.toFloat() else media.videoHeight.toFloat()
+                            val targetWidth = screenRoot.width.toFloat().coerceAtLeast(1f)
+                            val targetHeight = screenRoot.height.toFloat().coerceAtLeast(1f)
+                            if (sourceWidth > 0f && sourceHeight > 0f) {
+                                val scale = maxOf(targetWidth / sourceWidth, targetHeight / sourceHeight)
+                                scaleX = scale
+                                scaleY = scale
+                            }
+                        }
+                    } else {
+                        scaleX = 1f
+                        scaleY = 1f
+                    }
                     translationX = prefs.getInt("video_position_x", 0).toFloat() * resources.displayMetrics.widthPixels / 100f
                     translationY = prefs.getInt("video_position_y", 0).toFloat() * resources.displayMetrics.heightPixels / 100f
                     if (startAt > 0) seekTo(startAt)
