@@ -336,7 +336,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun showFilteredApps() {
+    private fun showFilteredApps(animate: Boolean = false) {
         val query = currentQuery.trim()
         val hidden = getHiddenPackages()
         val visibleApps = allApps.filter { it.packageName !in hidden }
@@ -344,7 +344,7 @@ class MainActivity : Activity() {
         val filtered = if (query.isBlank()) categoryApps else categoryApps.filter {
             it.label.contains(query, true) || it.packageName.contains(query, true)
         }
-        appAdapter.submitList(filtered)
+        appAdapter.submitList(filtered, animate)
         appCount.text = if (query.isBlank()) {
             "${filtered.size} apps"
         } else {
@@ -369,7 +369,7 @@ class MainActivity : Activity() {
                 setOnClickListener {
                     currentCategory = category
                     buildCategoryTabs()
-                    showFilteredApps()
+                    showFilteredApps(animate = true)
                 }
                 setSmoothPressFeedback()
             }
@@ -702,13 +702,21 @@ private class AppAdapter(
     private val iconCache = object : LruCache<String, Drawable.ConstantState>(96) {}
     private val executor = Executors.newFixedThreadPool(2)
     private val handler = Handler(Looper.getMainLooper())
+    private var animationGeneration = 0
 
     init {
         setHasStableIds(true)
     }
 
-    fun submitList(apps: List<LauncherApp>) {
+    fun submitList(apps: List<LauncherApp>, animate: Boolean = false) {
         val next = apps.toList()
+        if (animate) {
+            animationGeneration++
+            items.clear()
+            items.addAll(next)
+            notifyDataSetChanged()
+            return
+        }
         val diff = DiffUtil.calculateDiff(object : DiffUtil.Callback() {
             override fun getOldListSize() = items.size
             override fun getNewListSize() = next.size
@@ -760,20 +768,24 @@ private class AppAdapter(
         holder.label.text = app.label
         holder.icon.setImageDrawable(null)
         holder.itemView.tag = app.packageName
-        if (!holder.hasAnimated && position < 12) {
-            holder.hasAnimated = true
+        holder.itemView.animate().cancel()
+        holder.itemView.scaleX = 1f
+        holder.itemView.scaleY = 1f
+        if (holder.animationGeneration != animationGeneration && position < 24) {
+            holder.animationGeneration = animationGeneration
             holder.itemView.alpha = 0f
-            holder.itemView.translationY = context.dp(7).toFloat()
+            holder.itemView.translationY = context.dp(9).toFloat()
             holder.itemView.animate()
                 .alpha(1f)
                 .translationY(0f)
-                .setDuration(240)
+                .setStartDelay(position * 22L)
+                .setDuration(220)
                 .setInterpolator(NEXA_EASE)
                 .start()
         } else {
+            holder.animationGeneration = animationGeneration
             holder.itemView.alpha = 1f
             holder.itemView.translationY = 0f
-            holder.hasAnimated = true
         }
         holder.itemView.setOnClickListener { onClick(app) }
         holder.itemView.setSmoothPressFeedback()
@@ -806,7 +818,12 @@ private class AppAdapter(
     override fun getItemCount(): Int = items.size
 
     override fun onViewRecycled(holder: AppHolder) {
+        holder.itemView.animate().cancel()
         holder.itemView.tag = null
+        holder.itemView.alpha = 1f
+        holder.itemView.translationY = 0f
+        holder.itemView.scaleX = 1f
+        holder.itemView.scaleY = 1f
         holder.icon.setImageDrawable(null)
         super.onViewRecycled(holder)
     }
@@ -816,7 +833,7 @@ private class AppAdapter(
         val icon: ImageView,
         val label: TextView
     ) : RecyclerView.ViewHolder(itemView) {
-        var hasAnimated = false
+        var animationGeneration = -1
     }
 }
 
