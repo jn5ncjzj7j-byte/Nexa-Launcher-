@@ -60,6 +60,13 @@ class MainActivity : Activity() {
     private lateinit var categoryTabs: LinearLayout
     private lateinit var clock: TextView
     private lateinit var date: TextView
+    private lateinit var batteryLabel: TextView
+    private var batteryReceiverRegistered = false
+    private val batteryChangedReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            updateBatteryStatus(intent)
+        }
+    }
     private var allApps: List<LauncherApp> = emptyList()
     private var currentQuery = ""
     private var currentCategory = "All Apps"
@@ -87,9 +94,13 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
         window.statusBarColor = BACKGROUND
         window.navigationBarColor = BACKGROUND
-        window.decorView.systemUiVisibility = 0
+        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+        if (Build.VERSION.SDK_INT >= 30) {
+            window.insetsController?.show(android.view.WindowInsets.Type.statusBars())
+        }
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -149,10 +160,24 @@ class MainActivity : Activity() {
         }
 
         hero.addView(clock)
-        hero.addView(date, LinearLayout.LayoutParams(
+        val heroInfo = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        heroInfo.addView(date, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        batteryLabel = TextView(this).apply {
+            text = "Battery --%"
+            textSize = 12f
+            setTextColor(MUTED)
+            gravity = Gravity.CENTER
+            background = roundedBackground(SURFACE_HIGH, 12)
+            setPadding(dp(10), dp(6), dp(10), dp(6))
+        }
+        heroInfo.addView(batteryLabel)
+        hero.addView(heroInfo, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp(3) })
+        ).apply { topMargin = dp(5) })
         root.addView(hero, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
@@ -277,13 +302,32 @@ class MainActivity : Activity() {
         }
         if (Build.VERSION.SDK_INT >= 33) {
             registerReceiver(packageRemovedReceiver, packageFilter, Context.RECEIVER_NOT_EXPORTED)
+            registerReceiver(batteryChangedReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED), Context.RECEIVER_NOT_EXPORTED)
         } else {
             @Suppress("DEPRECATION")
             registerReceiver(packageRemovedReceiver, packageFilter)
+            @Suppress("DEPRECATION")
+            registerReceiver(batteryChangedReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
         }
+        batteryReceiverRegistered = true
 
         clockTick.run()
         loadApps()
+    }
+
+    private fun updateBatteryStatus(intent: Intent?) {
+        if (!::batteryLabel.isInitialized || intent == null) return
+        val level = intent.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1)
+        val scale = intent.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1)
+        if (level < 0 || scale <= 0) {
+            batteryLabel.text = "Battery --%"
+            return
+        }
+        val percent = (level * 100f / scale).toInt()
+        val status = intent.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1)
+        val charging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING ||
+            status == android.os.BatteryManager.BATTERY_STATUS_FULL
+        batteryLabel.text = if (charging) "⚡ $percent%" else "Battery $percent%"
     }
 
     override fun onResume() {
@@ -305,6 +349,10 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         mainHandler.removeCallbacksAndMessages(null)
         unregisterReceiver(packageRemovedReceiver)
+        if (batteryReceiverRegistered) {
+            unregisterReceiver(batteryChangedReceiver)
+            batteryReceiverRegistered = false
+        }
         worker.shutdownNow()
         super.onDestroy()
     }
