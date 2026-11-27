@@ -425,7 +425,16 @@ class MainActivity : Activity() {
 
         launcherRoot.addView(sectionHeader(localized("Favorites"), localized("Hold an app to manage it")))
         favoriteContainer = horizontalStrip()
-        launcherRoot.addView(favoriteContainer, LinearLayout.LayoutParams(
+        val favoriteScroll = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+            isFillViewport = false
+            addView(favoriteContainer, ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            ))
+        }
+        launcherRoot.addView(favoriteScroll, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             dp(48)
         ).apply {
@@ -435,7 +444,16 @@ class MainActivity : Activity() {
 
         launcherRoot.addView(sectionHeader(localized("Recently opened"), ""))
         recentContainer = horizontalStrip()
-        launcherRoot.addView(recentContainer, LinearLayout.LayoutParams(
+        val recentScroll = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+            isFillViewport = false
+            addView(recentContainer, ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            ))
+        }
+        launcherRoot.addView(recentScroll, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             dp(48)
         ).apply {
