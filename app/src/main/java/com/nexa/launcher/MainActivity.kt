@@ -6,9 +6,13 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
+import android.text.Editable
+import android.text.TextWatcher
 import android.util.LruCache
 import android.view.Gravity
 import android.view.View
@@ -19,16 +23,20 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
 
-private const val BACKGROUND = 0xFF101116.toInt()
-private const val SURFACE = 0xFF1B1E27.toInt()
-private const val TEXT = 0xFFF4F5FA.toInt()
-private const val MUTED = 0xFF9296A5.toInt()
-private const val ACCENT = 0xFF9B8CFF.toInt()
+private const val BACKGROUND = 0xFF0D0F14.toInt()
+private const val SURFACE = 0xFF171B24.toInt()
+private const val SURFACE_HIGH = 0xFF202633.toInt()
+private const val TEXT = 0xFFF5F6FC.toInt()
+private const val MUTED = 0xFF929BAD.toInt()
+private const val ACCENT = 0xFF9D8CFF.toInt()
 
 data class LauncherApp(
     val label: String,
@@ -40,20 +48,34 @@ class MainActivity : Activity() {
     private lateinit var appList: RecyclerView
     private lateinit var search: EditText
     private lateinit var recentContainer: LinearLayout
+    private lateinit var favoriteContainer: LinearLayout
+    private lateinit var appCount: TextView
+    private lateinit var clock: TextView
+    private lateinit var date: TextView
     private var allApps: List<LauncherApp> = emptyList()
+    private var currentQuery = ""
     private val worker = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val clockTick = object : Runnable {
+        override fun run() {
+            if (::clock.isInitialized) {
+                clock.text = SimpleDateFormat("h:mm", Locale.getDefault()).format(Date())
+                date.text = SimpleDateFormat("EEEE, d MMMM", Locale.getDefault()).format(Date())
+                mainHandler.postDelayed(this, 30_000)
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = BACKGROUND
         window.navigationBarColor = BACKGROUND
-        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
+        window.decorView.systemUiVisibility = 0
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(BACKGROUND)
-            setPadding(dp(22), dp(20), dp(22), dp(12))
+            setPadding(dp(20), dp(14), dp(20), dp(8))
         }
 
         val top = LinearLayout(this).apply {
@@ -63,75 +85,93 @@ class MainActivity : Activity() {
 
         val brand = TextView(this).apply {
             text = "NEXA"
-            textSize = 27f
+            textSize = 25f
             setTextColor(TEXT)
             typeface = Typeface.create("sans-serif", Typeface.BOLD)
-            letterSpacing = 0.08f
+            letterSpacing = 0.12f
         }
 
         val settings = TextView(this).apply {
-            text = "⋮"
-            textSize = 28f
+            text = "⚙"
+            textSize = 21f
             gravity = Gravity.CENTER
             setTextColor(TEXT)
-            setPadding(dp(16), 0, dp(4), 0)
+            background = roundedBackground(SURFACE, 15)
             setOnClickListener { showSettings() }
         }
 
-        top.addView(brand, LinearLayout.LayoutParams(0, dp(42), 1f))
-        top.addView(settings, LinearLayout.LayoutParams(dp(42), dp(42)))
+        top.addView(brand, LinearLayout.LayoutParams(0, dp(44), 1f))
+        top.addView(settings, LinearLayout.LayoutParams(dp(44), dp(44)))
         root.addView(top)
 
-        val subtitle = TextView(this).apply {
-            text = "Your home, made lighter."
+        val hero = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = roundedBackground(SURFACE, 22)
+            setPadding(dp(20), dp(17), dp(20), dp(17))
+        }
+
+        clock = TextView(this).apply {
+            text = "9:41"
+            textSize = 43f
+            setTextColor(TEXT)
+            typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
+            includeFontPadding = false
+        }
+
+        date = TextView(this).apply {
+            text = "Today"
             textSize = 13f
             setTextColor(MUTED)
         }
-        root.addView(subtitle)
+
+        hero.addView(clock)
+        hero.addView(date, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(3) })
+        root.addView(hero, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply {
+            topMargin = dp(18)
+            bottomMargin = dp(18)
+        })
 
         search = EditText(this).apply {
             hint = "Search apps"
             setHintTextColor(MUTED)
             setTextColor(TEXT)
             textSize = 15f
-            singleLine = true
+            isSingleLine = true
             imeOptions = EditorInfo.IME_ACTION_SEARCH
-            background = roundedBackground(SURFACE, 14)
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            background = roundedBackground(SURFACE_HIGH, 16)
             setPadding(dp(16), 0, dp(16), 0)
         }
-        val searchParams = LinearLayout.LayoutParams(
+        root.addView(search, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
-            dp(50)
+            dp(52)
+        ).apply { bottomMargin = dp(20) })
+
+        root.addView(sectionHeader("Favorites", "Hold an app to manage it"))
+        favoriteContainer = horizontalStrip()
+        root.addView(favoriteContainer, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            dp(48)
         ).apply {
-            topMargin = dp(22)
-            bottomMargin = dp(22)
-        }
-        root.addView(search, searchParams)
+            topMargin = dp(9)
+            bottomMargin = dp(18)
+        })
 
-        val recentTitle = sectionTitle("Recently opened")
-        root.addView(recentTitle)
-
-        val recentScroll = ScrollView(this).apply {
-            isHorizontalScrollBarEnabled = false
-            isVerticalScrollBarEnabled = false
-            overScrollMode = View.OVER_SCROLL_NEVER
-            isFillViewport = false
-        }
-        recentContainer = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        recentScroll.addView(recentContainer)
-        root.addView(
-            recentScroll,
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(52)
-            ).apply {
-                topMargin = dp(8)
-                bottomMargin = dp(20)
-            }
-        )
+        root.addView(sectionHeader("Recently opened", ""))
+        recentContainer = horizontalStrip()
+        root.addView(recentContainer, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            dp(48)
+        ).apply {
+            topMargin = dp(9)
+            bottomMargin = dp(18)
+        })
 
         val appsHeader = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -139,13 +179,12 @@ class MainActivity : Activity() {
         }
         appsHeader.addView(
             sectionTitle("All apps"),
-            LinearLayout.LayoutParams(0, dp(30), 1f)
+            LinearLayout.LayoutParams(0, dp(32), 1f)
         )
-        val appCount = TextView(this).apply {
+        appCount = TextView(this).apply {
             text = "Loading"
             textSize = 12f
             setTextColor(MUTED)
-            tag = "app_count"
         }
         appsHeader.addView(appCount)
         root.addView(appsHeader)
@@ -156,43 +195,62 @@ class MainActivity : Activity() {
             adapter = appAdapter
             setHasFixedSize(true)
             itemAnimator = null
-            setItemViewCacheSize(10)
+            setItemViewCacheSize(12)
             overScrollMode = View.OVER_SCROLL_NEVER
             isVerticalScrollBarEnabled = false
         }
-        root.addView(
-            appList,
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                0,
-                1f
-            ).apply {
-                topMargin = dp(8)
-            }
-        )
+        root.addView(appList, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            0,
+            1f
+        ).apply { topMargin = dp(8) })
 
         setContentView(root)
 
-        search.addTextChangedListener(SimpleTextWatcher { query ->
-            showFilteredApps(query)
+        search.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                currentQuery = s?.toString().orEmpty()
+                showFilteredApps()
+            }
+            override fun afterTextChanged(s: Editable?) = Unit
         })
 
+        search.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                appList.requestFocus()
+                true
+            } else false
+        }
+
+        clockTick.run()
         loadApps()
     }
 
     override fun onResume() {
         super.onResume()
         if (::recentContainer.isInitialized && allApps.isNotEmpty()) {
-            renderRecentApps()
+            renderQuickSections()
+        }
+        if (::clock.isInitialized) {
+            mainHandler.removeCallbacks(clockTick)
+            clockTick.run()
         }
     }
 
+    override fun onPause() {
+        super.onPause()
+        mainHandler.removeCallbacks(clockTick)
+    }
+
     override fun onDestroy() {
+        mainHandler.removeCallbacksAndMessages(null)
+        worker.shutdownNow()
         super.onDestroy()
-        worker.shutdown()
     }
 
     private fun loadApps() {
+        appCount.text = "Loading"
         worker.execute {
             val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
             val loaded = packageManager.queryIntentActivities(intent, 0)
@@ -206,26 +264,29 @@ class MainActivity : Activity() {
                 .sortedBy { it.label.lowercase(Locale.getDefault()) }
 
             mainHandler.post {
+                if (isFinishing || isDestroyed) return@post
                 allApps = loaded
-                appAdapter.submitList(loaded)
-                findViewWithTag<TextView>("app_count")?.text = loaded.size.toString()
-                renderRecentApps()
+                showFilteredApps()
+                renderQuickSections()
             }
         }
     }
 
-    private fun showFilteredApps(query: String) {
-        val filtered = if (query.isBlank()) {
-            allApps
-        } else {
-            allApps.filter { it.label.contains(query.trim(), true) }
+    private fun showFilteredApps() {
+        val query = currentQuery.trim()
+        val filtered = if (query.isBlank()) allApps else allApps.filter {
+            it.label.contains(query, true) || it.packageName.contains(query, true)
         }
         appAdapter.submitList(filtered)
-        findViewWithTag<TextView>("app_count")?.text = filtered.size.toString()
+        appCount.text = if (query.isBlank()) {
+            "${filtered.size} apps"
+        } else {
+            "${filtered.size} results"
+        }
     }
 
-    private fun renderRecentApps() {
-        recentContainer.removeAllViews()
+    private fun renderQuickSections() {
+        renderAppStrip(favoriteContainer, getFavorites(), "Pin apps here")
         val recent = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
             .getString("recent_apps", "")
             .orEmpty()
@@ -233,37 +294,69 @@ class MainActivity : Activity() {
             .filter { it.isNotBlank() }
             .mapNotNull { pkg -> allApps.find { it.packageName == pkg } }
             .take(8)
+        renderAppStrip(recentContainer, recent, "Your recent apps appear here")
+    }
 
-        if (recent.isEmpty()) {
-            val empty = TextView(this).apply {
-                text = "Apps you open will appear here"
+    private fun renderAppStrip(container: LinearLayout, apps: List<LauncherApp>, emptyText: String) {
+        container.removeAllViews()
+        if (apps.isEmpty()) {
+            container.addView(TextView(this).apply {
+                text = emptyText
                 textSize = 12f
                 setTextColor(MUTED)
-            }
-            recentContainer.addView(empty)
+                gravity = Gravity.CENTER_VERTICAL
+            })
             return
         }
-
-        recent.forEach { app ->
+        apps.forEach { app ->
             val chip = TextView(this).apply {
                 text = app.label
                 textSize = 12f
                 setTextColor(TEXT)
                 maxLines = 1
-                background = roundedBackground(SURFACE, 18)
-                setPadding(dp(15), dp(10), dp(15), dp(10))
+                gravity = Gravity.CENTER
+                background = roundedBackground(SURFACE_HIGH, 14)
+                setPadding(dp(15), 0, dp(15), 0)
+                isClickable = true
+                isFocusable = true
                 setOnClickListener { launchApp(app) }
-            }
-            recentContainer.addView(
-                chip,
-                LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                    dp(40)
-                ).apply {
-                    marginEnd = dp(8)
+                setOnLongClickListener {
+                    showAppActions(app)
+                    true
                 }
-            )
+            }
+            container.addView(chip, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                dp(40)
+            ).apply { marginEnd = dp(8) })
         }
+    }
+
+    private fun getFavorites(): List<LauncherApp> {
+        val favorites = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+            .getString("favorite_apps", "")
+            .orEmpty()
+            .split("|")
+            .filter { it.isNotBlank() }
+        return favorites.mapNotNull { pkg -> allApps.find { it.packageName == pkg } }
+    }
+
+    private fun toggleFavorite(app: LauncherApp) {
+        val favorites = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+            .getString("favorite_apps", "")
+            .orEmpty()
+            .split("|")
+            .filter { it.isNotBlank() }
+            .toMutableList()
+        if (app.packageName in favorites) {
+            favorites.remove(app.packageName)
+        } else {
+            favorites.add(0, app.packageName)
+        }
+        getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
+            .putString("favorite_apps", favorites.distinct().take(12).joinToString("|"))
+            .apply()
+        renderQuickSections()
     }
 
     private fun launchApp(app: LauncherApp) {
@@ -278,22 +371,72 @@ class MainActivity : Activity() {
 
         val launchIntent = packageManager.getLaunchIntentForPackage(app.packageName)
         if (launchIntent != null) {
+            renderQuickSections()
             launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             startActivity(launchIntent)
         }
     }
 
-    private fun showSettings() {
-        val options = arrayOf("Refresh app list", "About NEXA Launcher")
+    private fun showAppActions(app: LauncherApp) {
+        val favorite = getFavorites().any { it.packageName == app.packageName }
+        val options = arrayOf(
+            if (favorite) "Remove from favorites" else "Add to favorites",
+            "App info",
+            "Uninstall"
+        )
         AlertDialog.Builder(this)
-            .setTitle("NEXA Launcher")
+            .setTitle(app.label)
             .setItems(options) { _, which ->
-                if (which == 0) {
-                    loadApps()
-                } else {
-                    AlertDialog.Builder(this)
+                when (which) {
+                    0 -> toggleFavorite(app)
+                    1 -> openAppInfo(app)
+                    2 -> uninstallApp(app)
+                }
+            }
+            .show()
+    }
+
+    private fun openAppInfo(app: LauncherApp) {
+        try {
+            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.parse("package:${app.packageName}")
+            })
+        } catch (_: Exception) {
+            showMessage("Unable to open app info.")
+        }
+    }
+
+    private fun uninstallApp(app: LauncherApp) {
+        try {
+            startActivity(Intent(Intent.ACTION_DELETE).apply {
+                data = Uri.parse("package:${app.packageName}")
+            })
+        } catch (_: Exception) {
+            showMessage("This app cannot be uninstalled here.")
+        }
+    }
+
+    private fun showSettings() {
+        val options = arrayOf(
+            "Refresh apps",
+            "Manage default home app",
+            "About NEXA"
+        )
+        AlertDialog.Builder(this)
+            .setTitle("NEXA settings")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> loadApps()
+                    1 -> {
+                        try {
+                            startActivity(Intent(Settings.ACTION_HOME_SETTINGS))
+                        } catch (_: Exception) {
+                            showMessage("Open Android Settings and choose Default apps, then Home app.")
+                        }
+                    }
+                    2 -> AlertDialog.Builder(this)
                         .setTitle("NEXA Launcher")
-                        .setMessage("A lightweight home screen built for everyday Android devices.")
+                        .setMessage("A lightweight Android home screen focused on speed, clarity, and control. Version 0.2.0")
                         .setPositiveButton("OK", null)
                         .show()
                 }
@@ -301,9 +444,37 @@ class MainActivity : Activity() {
             .show()
     }
 
+    private fun showMessage(message: String) {
+        AlertDialog.Builder(this)
+            .setMessage(message)
+            .setPositiveButton("OK", null)
+            .show()
+    }
+
+    private fun sectionHeader(title: String, detail: String): View {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        row.addView(sectionTitle(title), LinearLayout.LayoutParams(0, dp(28), 1f))
+        if (detail.isNotBlank()) {
+            row.addView(TextView(this).apply {
+                text = detail
+                textSize = 10f
+                setTextColor(MUTED)
+            })
+        }
+        return row
+    }
+
+    private fun horizontalStrip() = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+    }
+
     private fun sectionTitle(value: String) = TextView(this).apply {
         text = value
-        textSize = 17f
+        textSize = 16f
         setTextColor(TEXT)
         typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
     }
@@ -319,21 +490,7 @@ class MainActivity : Activity() {
 
     private fun gridColumns(): Int {
         val width = resources.displayMetrics.widthPixels / resources.displayMetrics.density
-        return (width / 112f).toInt().coerceIn(3, 6)
-    }
-
-    private fun <T : View> findViewWithTag(tagValue: String): T? {
-        fun search(view: View): T? {
-            if (view.tag == tagValue) return view as? T
-            if (view is ViewGroup) {
-                for (index in 0 until view.childCount) {
-                    val found = search(view.getChildAt(index))
-                    if (found != null) return found
-                }
-            }
-            return null
-        }
-        return search(window.decorView)
+        return (width / 104f).toInt().coerceIn(3, 6)
     }
 }
 
@@ -342,7 +499,7 @@ private class AppAdapter(
     private val onClick: (LauncherApp) -> Unit
 ) : RecyclerView.Adapter<AppAdapter.AppHolder>() {
     private val items = ArrayList<LauncherApp>()
-    private val iconCache = object : LruCache<String, Drawable.ConstantState>(48) {}
+    private val iconCache = object : LruCache<String, Drawable.ConstantState>(96) {}
     private val executor = Executors.newFixedThreadPool(2)
     private val handler = Handler(Looper.getMainLooper())
 
@@ -351,9 +508,18 @@ private class AppAdapter(
     }
 
     fun submitList(apps: List<LauncherApp>) {
+        val next = apps.toList()
+        val diff = DiffUtil.calculateDiff(object : DiffUtil.Callback() {
+            override fun getOldListSize() = items.size
+            override fun getNewListSize() = next.size
+            override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int) =
+                items[oldItemPosition].packageName == next[newItemPosition].packageName
+            override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int) =
+                items[oldItemPosition] == next[newItemPosition]
+        })
         items.clear()
-        items.addAll(apps)
-        notifyDataSetChanged()
+        items.addAll(next)
+        diff.dispatchUpdatesTo(this)
     }
 
     override fun getItemId(position: Int): Long =
@@ -363,8 +529,8 @@ private class AppAdapter(
         val root = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(context.dp(6), context.dp(10), context.dp(6), context.dp(8))
-            background = context.roundedBackground(SURFACE, 14)
+            setPadding(context.dp(5), context.dp(10), context.dp(5), context.dp(8))
+            background = context.roundedBackground(SURFACE, 16)
             isClickable = true
             isFocusable = true
         }
@@ -372,10 +538,7 @@ private class AppAdapter(
         val icon = ImageView(context).apply {
             scaleType = ImageView.ScaleType.FIT_CENTER
         }
-        root.addView(
-            icon,
-            LinearLayout.LayoutParams(context.dp(48), context.dp(48))
-        )
+        root.addView(icon, LinearLayout.LayoutParams(context.dp(46), context.dp(46)))
 
         val label = TextView(context).apply {
             textSize = 11f
@@ -384,15 +547,10 @@ private class AppAdapter(
             maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
         }
-        root.addView(
-            label,
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                context.dp(34)
-            ).apply {
-                topMargin = context.dp(7)
-            }
-        )
+        root.addView(label, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            context.dp(34)
+        ).apply { topMargin = context.dp(7) })
 
         return AppHolder(root, icon, label)
     }
@@ -403,6 +561,14 @@ private class AppAdapter(
         holder.icon.setImageDrawable(null)
         holder.itemView.tag = app.packageName
         holder.itemView.setOnClickListener { onClick(app) }
+        holder.itemView.setOnLongClickListener {
+            (context as? MainActivity)?.let { activity ->
+                activity.javaClass.getDeclaredMethod("showAppActions", LauncherApp::class.java)
+                    .apply { isAccessible = true }
+                    .invoke(activity, app)
+            }
+            true
+        }
 
         val cached = iconCache.get(app.packageName)
         if (cached != null) {
@@ -415,16 +581,10 @@ private class AppAdapter(
                 } catch (_: Exception) {
                     null
                 }
-
-                if (state != null) {
-                    iconCache.put(packageName, state)
-                }
-
+                if (state != null) iconCache.put(packageName, state)
                 handler.post {
                     if (holder.itemView.tag == packageName && state != null) {
-                        holder.icon.setImageDrawable(
-                            state.newDrawable(context.resources).mutate()
-                        )
+                        holder.icon.setImageDrawable(state.newDrawable(context.resources).mutate())
                     }
                 }
             }
@@ -454,13 +614,3 @@ private fun Context.roundedBackground(color: Int, radius: Int) =
         setColor(color)
         cornerRadius = dp(radius).toFloat()
     }
-
-private class SimpleTextWatcher(
-    private val onChanged: (String) -> Unit
-) : android.text.TextWatcher {
-    override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
-    override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-        onChanged(s?.toString().orEmpty())
-    }
-    override fun afterTextChanged(s: android.text.Editable?) = Unit
-}
