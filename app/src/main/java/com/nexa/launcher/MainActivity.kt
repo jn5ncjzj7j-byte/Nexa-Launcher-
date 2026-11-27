@@ -177,7 +177,9 @@ class MainActivity : Activity() {
             "Battery indicator" to "ตัวแสดงแบตเตอรี่",
             "Change its size, low-battery threshold, and colors" to "ปรับขนาด ระดับแบตเตอรี่ต่ำ และสี",
             "Low battery threshold" to "ระดับแบตเตอรี่ต่ำ",
+            "Medium battery threshold" to "ระดับแบตเตอรี่ปานกลาง",
             "Low battery color" to "สีเมื่อแบตเตอรี่ต่ำ",
+            "Medium battery color" to "สีเมื่อแบตเตอรี่ปานกลาง",
             "Normal battery color" to "สีแบตเตอรี่ปกติ",
             "Time format" to "รูปแบบเวลา",
             "Choose 12-hour AM/PM or 24-hour time" to "เลือกรูปแบบเวลา 12 ชั่วโมง AM/PM หรือ 24 ชั่วโมง",
@@ -617,10 +619,19 @@ class MainActivity : Activity() {
         val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
         val threshold = prefs.getInt("battery_low_threshold", 20)
         val low = percent <= threshold
-        val color = prefs.getInt(
-            if (low) "battery_low_color" else "battery_normal_color",
-            if (low) 0xFFFF5964.toInt() else 0xFF69D9A5.toInt()
-        )
+        val mediumThreshold = maxOf(threshold + 5, prefs.getInt("battery_medium_threshold", 50))
+        val medium = !low && percent <= mediumThreshold
+        val colorKey = when {
+            low -> "battery_low_color"
+            medium -> "battery_medium_color"
+            else -> "battery_normal_color"
+        }
+        val defaultColor = when {
+            low -> 0xFFFF5964.toInt()
+            medium -> 0xFFFFC857.toInt()
+            else -> 0xFF69D9A5.toInt()
+        }
+        val color = prefs.getInt(colorKey, defaultColor)
         batteryIcon.level = percent
         batteryIcon.batteryColor = color
         batteryIcon.charging = charging
@@ -683,6 +694,30 @@ class MainActivity : Activity() {
             })
         }
         panel.addView(thresholdSeek)
+        val mediumThresholdLabel = TextView(this).apply {
+            text = localized("Medium battery threshold")
+            textSize = 13f
+            setTextColor(TEXT)
+        }
+        panel.addView(mediumThresholdLabel, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
+        val mediumThresholdValue = TextView(this).apply {
+            text = "${prefs.getInt("battery_medium_threshold", 50)}%"
+            textSize = 12f
+            setTextColor(MUTED)
+        }
+        panel.addView(mediumThresholdValue)
+        val mediumThresholdSeek = SeekBar(this).apply {
+            max = 60
+            progress = (prefs.getInt("battery_medium_threshold", 50) - 25).coerceIn(0, 60)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    mediumThresholdValue.text = "${progress + 25}%"
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+        }
+        panel.addView(mediumThresholdSeek)
         val normalColor = TextView(this).apply {
             text = localized("Battery color")
             textSize = 14f
@@ -713,6 +748,21 @@ class MainActivity : Activity() {
             }
         }
         panel.addView(lowColor, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(8) })
+        val mediumColor = TextView(this).apply {
+            text = localized("Medium battery color")
+            textSize = 14f
+            setTextColor(TEXT)
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            background = roundedBackground(SURFACE, 12)
+            setOnClickListener {
+                showCustomColor("Medium battery color", prefs.getInt("battery_medium_color", 0xFFFFC857.toInt())) { color ->
+                    prefs.edit().putInt("battery_medium_color", color).apply()
+                    updateBatteryStatus(registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)))
+                }
+            }
+        }
+        panel.addView(mediumColor, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(8) })
         AlertDialog.Builder(this)
             .setTitle(localized("Battery indicator"))
             .setView(panel)
@@ -720,6 +770,7 @@ class MainActivity : Activity() {
                 prefs.edit()
                     .putInt("battery_size", sizeSeek.progress + 20)
                     .putInt("battery_low_threshold", thresholdSeek.progress + 5)
+                    .putInt("battery_medium_threshold", maxOf(thresholdSeek.progress + 10, mediumThresholdSeek.progress + 25))
                     .apply()
                 if (::batteryIcon.isInitialized) {
                     val size = sizeSeek.progress + 20
@@ -1458,47 +1509,6 @@ class MainActivity : Activity() {
         setContentView(page)
     }
 
-    private fun showBatterySettings() {
-        val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
-        val options = arrayOf("10%", "15%", "20%", "25%", "30%", "35%", "40%")
-        val values = intArrayOf(10, 15, 20, 25, 30, 35, 40)
-        val current = prefs.getInt("battery_low_threshold", 20)
-        val selected = values.indices.minByOrNull { kotlin.math.abs(values[it] - current) } ?: 2
-        val actions = arrayOf(
-            localized("Low battery threshold"),
-            localized("Low battery color"),
-            localized("Normal battery color")
-        )
-        AlertDialog.Builder(this)
-            .setTitle(localized("Battery indicator"))
-            .setItems(actions) { dialog, which ->
-                when (which) {
-                    0 -> AlertDialog.Builder(this)
-                        .setTitle(localized("Low battery threshold"))
-                        .setSingleChoiceItems(options, selected) { thresholdDialog, choice ->
-                            prefs.edit().putInt("battery_low_threshold", values[choice]).apply()
-                            val sticky = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-                            updateBatteryStatus(sticky)
-                            thresholdDialog.dismiss()
-                        }
-                        .setNegativeButton(localized("Cancel"), null)
-                        .show()
-                    1 -> showCustomColor("Low battery color", prefs.getInt("battery_low_color", 0xFFFF5964.toInt())) { color ->
-                        prefs.edit().putInt("battery_low_color", color).apply()
-                        val sticky = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-                        updateBatteryStatus(sticky)
-                    }
-                    2 -> showCustomColor("Normal battery color", prefs.getInt("battery_normal_color", 0xFF69D9A5.toInt())) { color ->
-                        prefs.edit().putInt("battery_normal_color", color).apply()
-                        val sticky = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-                        updateBatteryStatus(sticky)
-                    }
-                }
-                dialog.dismiss()
-            }
-            .setNegativeButton(localized("Done"), null)
-            .show()
-    }
 
     private fun showAppearanceSettings() {
         val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
