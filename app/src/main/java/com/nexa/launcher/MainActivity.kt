@@ -345,39 +345,44 @@ class MainActivity : Activity() {
 
     private fun matchesCategory(app: LauncherApp, category: String): Boolean {
         if (category == "All Apps") return true
-        val label = app.label.lowercase(Locale.getDefault())
-        val pkg = app.packageName.lowercase(Locale.getDefault())
+        val label = app.label.lowercase(Locale.ROOT)
+        val pkg = app.packageName.lowercase(Locale.ROOT)
         val identity = "$label $pkg"
+        val appCategory = try {
+            packageManager.getApplicationInfo(app.packageName, 0).category
+        } catch (_: Exception) {
+            android.content.pm.ApplicationInfo.CATEGORY_UNDEFINED
+        }
+        val gameKeywords = listOf(
+            "game", "games", "minecraft", "roblox", "pubg", "mobile legends",
+            "freefire", "free fire", "garena", "genshin", "asphalt", "callofduty",
+            "call of duty", "clash", "among us", "stumble", "brawl stars",
+            "fortnite", "pokemon", "wild rift", "league of legends", "honor of kings"
+        )
+        val videoKeywords = listOf(
+            "netflix", "youtube", "youtube tv", "disney", "prime video",
+            "amazon video", "hbo", "plex", "vlc", "mx player", "movie",
+            "movies", "film", "streaming", "video player", "iqiyi", "viu",
+            "wetv", "trueid", "one31", "viaplay", "tubi", "crunchyroll"
+        )
+        val musicKeywords = listOf(
+            "spotify", "youtube music", "music", "audio", "soundcloud",
+            "apple music", "tidal", "deezer", "shazam", "podcast", "radio"
+        )
+        val toolKeywords = listOf(
+            "calculator", "calendar", "clock", "file manager", "files",
+            "weather", "notes", "notepad", "recorder", "contacts",
+            "camera", "scanner", "compass", "browser", "downloads",
+            "keyboard", "cleaner"
+        )
+        val isGame = appCategory == android.content.pm.ApplicationInfo.CATEGORY_GAME ||
+            gameKeywords.any { identity.contains(it) }
+        if (category == "Games") return isGame
+        if (isGame) return false
         return when (category) {
-            "Games" -> {
-                val isGame = try {
-                    packageManager.getApplicationInfo(app.packageName, 0).category ==
-                        android.content.pm.ApplicationInfo.CATEGORY_GAME
-                } catch (_: Exception) {
-                    false
-                }
-                isGame || listOf(
-                    "game", "games", "minecraft", "roblox", "pubg", "mobile legends",
-                    "freefire", "free fire", "genshin", "asphalt", "callofduty",
-                    "call of duty", "clash", "among us", "stumble"
-                ).any { identity.contains(it) }
-            }
-            "Movies & TV" -> listOf(
-                "netflix", "youtube", "youtube tv", "disney", "prime video",
-                "amazon video", "hbo", "max ", "max.com", "plex", "vlc",
-                "mx player", "movie", "movies", "film", "tv", "stream",
-                "video player", "iqiyi", "viu", "wetv", "trueid", "one31"
-            ).any { identity.contains(it) }
-            "Music" -> listOf(
-                "spotify", "youtube music", "music", "audio", "soundcloud",
-                "apple music", "tidal", "deezer", "shazam", "podcast", "radio"
-            ).any { identity.contains(it) }
-            "Tools" -> listOf(
-                "calculator", "calendar", "clock", "file manager", "files",
-                "weather", "notes", "notepad", "recorder", "contacts",
-                "camera", "scanner", "compass", " flashlight", "browser",
-                "downloads", "keyboard", "settings", "cleaner"
-            ).any { identity.contains(it) }
+            "Movies & TV" -> videoKeywords.any { identity.contains(it) }
+            "Music" -> musicKeywords.any { identity.contains(it) }
+            "Tools" -> toolKeywords.any { identity.contains(it) }
             else -> true
         }
     }
