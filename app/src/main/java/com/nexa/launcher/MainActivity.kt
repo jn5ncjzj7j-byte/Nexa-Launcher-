@@ -899,8 +899,9 @@ class MainActivity : Activity() {
                 isClickable = true
                 isFocusable = true
                 setOnClickListener {
+                    if (currentCategory == category) return@setOnClickListener
                     currentCategory = category
-                    buildCategoryTabs()
+                    updateCategoryTabSelection(true)
                     showFilteredApps(animate = true)
                 }
                 setSmoothPressFeedback()
@@ -932,6 +933,38 @@ class MainActivity : Activity() {
             ViewGroup.LayoutParams.WRAP_CONTENT,
             dp(34)
         ).apply { marginEnd = dp(8) })
+    }
+
+    private fun updateCategoryTabSelection(animate: Boolean) {
+        val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+        selectedAccent = prefs.getInt("accent_color", ACCENT)
+        val categories = builtInCategories + getCustomCategories()
+        for (index in categories.indices) {
+            val tab = categoryTabs.getChildAt(index) as? TextView ?: continue
+            val selected = categories[index] == currentCategory
+            val targetColor = if (selected) selectedAccent else SURFACE_HIGH
+            val targetTextColor = if (selected) BACKGROUND else TEXT
+            tab.animate().cancel()
+            tab.setTextColor(targetTextColor)
+            if (animate && tab.isLaidOut) {
+                val startColor = (tab.background as? android.graphics.drawable.GradientDrawable)
+                    ?.let { drawable ->
+                        val state = drawable.constantState?.newDrawable()?.mutate()
+                        val bitmap = android.graphics.drawable.DrawableCompat.wrap(state ?: drawable)
+                        val color = if (selected) SURFACE_HIGH else selectedAccent
+                        color
+                    } ?: targetColor
+                val animator = android.animation.ValueAnimator.ofArgb(startColor, targetColor)
+                animator.duration = 170L
+                animator.interpolator = NEXA_EASE
+                animator.addUpdateListener { value ->
+                    tab.background = roundedBackground(value.animatedValue as Int, 18)
+                }
+                animator.start()
+            } else {
+                tab.background = roundedBackground(targetColor, 18)
+            }
+        }
     }
 
     private fun getCustomCategories(): List<String> {
@@ -1686,7 +1719,7 @@ class MainActivity : Activity() {
                         )) { color ->
                             selectedAccent = color
                             prefs.edit().putInt("accent_color", color).apply()
-                            buildCategoryTabs()
+                            updateCategoryTabSelection(false)
                             refreshPreview()
                         }
                         10 -> showColorChoices("Wallpaper visibility", listOf(
@@ -1705,7 +1738,7 @@ class MainActivity : Activity() {
                         12 -> showCustomColor("Custom accent color", selectedAccent) { color ->
                             selectedAccent = color
                             prefs.edit().putInt("accent_color", color).apply()
-                            buildCategoryTabs()
+                            updateCategoryTabSelection(false)
                             refreshPreview()
                         }
                         13 -> {
@@ -2534,13 +2567,7 @@ private class AppAdapter(
 
     fun submitList(apps: List<LauncherApp>, animate: Boolean = false) {
         val next = apps.toList()
-        if (animate) {
-            animationGeneration++
-            items.clear()
-            items.addAll(next)
-            notifyDataSetChanged()
-            return
-        }
+        if (animate) animationGeneration++
         val diff = DiffUtil.calculateDiff(object : DiffUtil.Callback() {
             override fun getOldListSize() = items.size
             override fun getNewListSize() = next.size
@@ -2622,8 +2649,8 @@ private class AppAdapter(
             holder.itemView.animate()
                 .alpha(1f)
                 .translationY(0f)
-                .setStartDelay(position * 18L)
-                .setDuration(250)
+                .setStartDelay((position.coerceAtMost(12)) * 7L)
+                .setDuration(180)
                 .setInterpolator(NEXA_EASE)
                 .start()
         } else {
