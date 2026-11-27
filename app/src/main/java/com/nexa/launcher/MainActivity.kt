@@ -223,7 +223,7 @@ class MainActivity : Activity() {
             "Android Settings" to "การตั้งค่า Android",
             "Open your device settings" to "เปิดการตั้งค่าอุปกรณ์",
             "About NEXA" to "เกี่ยวกับ NEXA",
-            "Version 0.4.0 · Lightweight Android launcher" to "เวอร์ชัน 0.4.0 · ลอนเชอร์ Android ที่มีน้ำหนักเบา",
+            "Version 0.5.0 · Lightweight Android launcher" to "เวอร์ชัน 0.5.0 · ลอนเชอร์ Android ที่มีน้ำหนักเบา",
             "NEXA Launcher is designed to keep your home screen fast, smooth, and customizable." to "NEXA Launcher ออกแบบมาเพื่อให้หน้าจอหลักรวดเร็ว ลื่นไหล และปรับแต่งได้",
             "Your apps  ·  Games  ·  Tools" to "แอปของคุณ · เกม · เครื่องมือ",
             "Choose photo wallpaper" to "เลือกรูปภาพวอลเปเปอร์",
@@ -414,6 +414,8 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val savedCategory = getSharedPreferences("nexa_launcher", MODE_PRIVATE).getString("last_selected_category", "All Apps").orEmpty()
+        currentCategory = if (savedCategory in builtInCategories || savedCategory in getCustomCategories()) savedCategory else "All Apps"
         window.statusBarColor = BACKGROUND
         window.navigationBarColor = BACKGROUND
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -1283,6 +1285,13 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun setCurrentCategory(category: String) {
+        currentCategory = category
+        getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
+            .putString("last_selected_category", category)
+            .apply()
+    }
+
     private fun buildCategoryTabs() {
         selectedAccent = getSharedPreferences("nexa_launcher", MODE_PRIVATE).getInt("accent_color", ACCENT)
         categoryTabs.removeAllViews()
@@ -1300,7 +1309,7 @@ class MainActivity : Activity() {
                 isFocusable = true
                 setOnClickListener {
                     if (currentCategory == category) return@setOnClickListener
-                    currentCategory = category
+                    setCurrentCategory(category)
                     updateCategoryTabSelection(true)
                     showFilteredApps(animate = true)
                 }
@@ -1407,7 +1416,7 @@ class MainActivity : Activity() {
                 getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
                     .putString("custom_app_tabs", updated.toString())
                     .apply()
-                currentCategory = name
+                setCurrentCategory(name)
                 buildCategoryTabs()
                 showFilteredApps(animate = true)
             }
@@ -1453,7 +1462,7 @@ class MainActivity : Activity() {
                     .putString(customTabKey(newName), apps)
                     .remove(customTabKey(oldName))
                     .apply()
-                if (currentCategory == oldName) currentCategory = newName
+                if (currentCategory == oldName) setCurrentCategory(newName)
                 buildCategoryTabs()
                 showFilteredApps(animate = true)
             }
@@ -1469,7 +1478,7 @@ class MainActivity : Activity() {
             .putString("custom_app_tabs", updated.toString())
             .remove(customTabKey(category))
             .apply()
-        if (currentCategory == category) currentCategory = "All Apps"
+        if (currentCategory == category) setCurrentCategory("All Apps")
         buildCategoryTabs()
         showFilteredApps(animate = true)
     }
@@ -1489,7 +1498,7 @@ class MainActivity : Activity() {
                     .split("|").filter { it.isNotBlank() }.toMutableSet()
                 packages.add(app.packageName)
                 prefs.edit().putString(customTabKey(tab), packages.joinToString("|")).apply()
-                currentCategory = tab
+                setCurrentCategory(tab)
                 buildCategoryTabs()
                 showFilteredApps(animate = true)
             }
@@ -1963,7 +1972,7 @@ class MainActivity : Activity() {
         }
         section("System", "Android settings and information")
         item("Android Settings", "Open your device settings") { openAndroidSettings() }
-        item("About NEXA", "Version 0.4.0 · Lightweight Android launcher") {
+        item("About NEXA", "Version 0.5.0 · Lightweight Android launcher") {
             showMessage("NEXA Launcher is designed to keep your home screen fast, smooth, and customizable.")
         }
         scroll.addView(content)
