@@ -93,14 +93,29 @@ class MainActivity : Activity() {
                 trimLoopPending = true
                 player.pause()
                 player.seekTo(start)
-                mainHandler.postDelayed({
-                    trimLoopPending = false
-                    if (videoWallpaper === player && activityResumed && !isFinishing && !isDestroyed) {
-                        player.start()
-                        mainHandler.removeCallbacks(this)
-                        mainHandler.postDelayed(this, 100)
+                val waitForSeek = object : Runnable {
+                    var attempts = 0
+                    override fun run() {
+                        if (!trimLoopPending || videoWallpaper !== player || !activityResumed || isFinishing || isDestroyed) {
+                            trimLoopPending = false
+                            return
+                        }
+                        val position = player.currentPosition
+                        if (position < end && position <= start + 1000) {
+                            trimLoopPending = false
+                            player.start()
+                            mainHandler.removeCallbacks(videoTrimTick)
+                            mainHandler.postDelayed(videoTrimTick, 100)
+                        } else if (attempts++ < 75) {
+                            mainHandler.postDelayed(this, 40)
+                        } else {
+                            attempts = 0
+                            player.seekTo(start)
+                            mainHandler.postDelayed(this, 100)
+                        }
                     }
-                }, 250)
+                }
+                mainHandler.postDelayed(waitForSeek, 80)
                 return
             }
             if (!trimLoopPending) mainHandler.postDelayed(this, 80)
@@ -433,6 +448,7 @@ class MainActivity : Activity() {
 
     override fun onPause() {
         activityResumed = false
+        trimLoopPending = false
         super.onPause()
         mainHandler.removeCallbacks(clockTick)
         mainHandler.removeCallbacks(videoTrimTick)
