@@ -839,52 +839,20 @@ class MainActivity : Activity() {
         hero.addView(weatherRow, index)
     }
 
-    private fun systemUsesFahrenheit(): Boolean {
-        val locales = mutableListOf<Locale>()
-        locales.add(Locale.getDefault(Locale.Category.FORMAT))
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            val configured = resources.configuration.locales
-            for (index in 0 until configured.size()) {
-                locales.add(configured[index])
-            }
-        }
-        locales.add(Locale.getDefault())
-        for (locale in locales.distinct()) {
-            when (locale.getUnicodeLocaleType("mu")?.lowercase(Locale.ROOT)) {
-                "celsius" -> return false
-                "fahrenhe", "fahrenheit" -> return true
-            }
-        }
-        val region = locales.firstOrNull { it.country.isNotBlank() }?.country?.uppercase(Locale.ROOT).orEmpty()
-        return region in setOf("US", "LR", "BS", "BZ", "KY", "PW", "FM", "MH", "PR", "GU", "VI", "AS")
-    }
-
     private fun usesFahrenheit(): Boolean {
         val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
-        return when (prefs.getString("temperature_unit", "system")) {
-            "celsius" -> false
-            "fahrenheit" -> true
-            else -> systemUsesFahrenheit()
-        }
+        return prefs.getString("temperature_unit", "celsius") == "fahrenheit"
     }
 
     private fun showTemperatureUnitSettings() {
         val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
-        val units = arrayOf(localized("Device default"), localized("Celsius (°C)"), localized("Fahrenheit (°F)"))
-        val selected = prefs.getString("temperature_unit", "system")
-        val index = when (selected) {
-            "celsius" -> 1
-            "fahrenheit" -> 2
-            else -> 0
-        }
+        val units = arrayOf(localized("Celsius (°C)"), localized("Fahrenheit (°F)"))
+        val selected = prefs.getString("temperature_unit", "celsius")
+        val index = if (selected == "fahrenheit") 1 else 0
         AlertDialog.Builder(this)
             .setTitle(localized("Temperature unit"))
             .setSingleChoiceItems(units, index) { dialog, unit ->
-                val value = when (unit) {
-                    1 -> "celsius"
-                    2 -> "fahrenheit"
-                    else -> "system"
-                }
+                val value = if (unit == 1) "fahrenheit" else "celsius"
                 prefs.edit().putString("temperature_unit", value).apply()
                 lastDeviceTemperature = Float.NaN
                 val batteryIntent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
