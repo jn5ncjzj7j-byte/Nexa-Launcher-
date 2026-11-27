@@ -62,6 +62,7 @@ class MainActivity : Activity() {
     private lateinit var date: TextView
     private lateinit var batteryLabel: TextView
     private var batteryReceiverRegistered = false
+    private var packageReceiverRegistered = false
     private val batteryChangedReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             updateBatteryStatus(intent)
@@ -96,8 +97,6 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.statusBarColor = BACKGROUND
         window.navigationBarColor = BACKGROUND
-        hideSystemBars()
-
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(BACKGROUND)
@@ -269,6 +268,7 @@ class MainActivity : Activity() {
         ).apply { topMargin = dp(8) })
 
         setContentView(root)
+        window.decorView.post { if (!isFinishing && !isDestroyed) hideSystemBars() }
 
         hero.animate()
             .alpha(1f)
@@ -297,14 +297,19 @@ class MainActivity : Activity() {
             addDataScheme("package")
         }
         val batteryFilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
-        val batteryIntent = if (Build.VERSION.SDK_INT >= 33) {
-            registerReceiver(packageRemovedReceiver, packageFilter, Context.RECEIVER_NOT_EXPORTED)
-            registerReceiver(batteryChangedReceiver, batteryFilter, Context.RECEIVER_NOT_EXPORTED)
+        val packageIntent: Intent?
+        val batteryIntent: Intent?
+        if (Build.VERSION.SDK_INT >= 33) {
+            packageIntent = registerReceiver(packageRemovedReceiver, packageFilter, Context.RECEIVER_NOT_EXPORTED)
+            packageReceiverRegistered = true
+            batteryIntent = registerReceiver(batteryChangedReceiver, batteryFilter, Context.RECEIVER_NOT_EXPORTED)
         } else {
             @Suppress("DEPRECATION")
-            registerReceiver(packageRemovedReceiver, packageFilter)
-            @Suppress("DEPRECATION")
-            registerReceiver(batteryChangedReceiver, batteryFilter)
+            run {
+                packageIntent = registerReceiver(packageRemovedReceiver, packageFilter)
+                packageReceiverRegistered = true
+                batteryIntent = registerReceiver(batteryChangedReceiver, batteryFilter)
+            }
         }
         batteryReceiverRegistered = true
         updateBatteryStatus(batteryIntent)
@@ -315,46 +320,27 @@ class MainActivity : Activity() {
 
     private fun updateBatteryStatus(intent: Intent?) {
         if (!::batteryLabel.isInitialized) return
-        val batteryManager = getSystemService(BATTERY_SERVICE) as android.os.BatteryManager
-        val capacity = batteryManager.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
         val level = intent?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) ?: -1
         val scale = intent?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1) ?: -1
-        val percent = when {
-            capacity in 0..100 -> capacity
-            level >= 0 && scale > 0 -> (level * 100f / scale).toInt()
-            else -> -1
-        }
-        if (percent < 0) {
-            batteryLabel.text = "Battery unavailable"
+        if (level < 0 || scale <= 0) {
+            batteryLabel.text = "Battery --%"
             return
         }
+        val percent = (level * 100f / scale).toInt()
         val status = intent?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
         val charging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING ||
             status == android.os.BatteryManager.BATTERY_STATUS_FULL
         batteryLabel.text = if (charging) "⚡ $percent%" else "Battery $percent%"
     }
 
+    @Suppress("DEPRECATION")
     private fun hideSystemBars() {
-        if (Build.VERSION.SDK_INT >= 30) {
-            window.insetsController?.let { controller ->
-                controller.systemBarsBehavior =
-                    android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                controller.hide(android.view.WindowInsets.Type.systemBars())
-            }
-        } else {
-            @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = (
-                View.SYSTEM_UI_FLAG_FULLSCREEN or
-                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                )
-        }
-    }
-
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) hideSystemBars()
+        window.decorView.systemUiVisibility = (
+            View.SYSTEM_UI_FLAG_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+            )
     }
 
     override fun onResume() {
@@ -375,7 +361,10 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         mainHandler.removeCallbacksAndMessages(null)
-        unregisterReceiver(packageRemovedReceiver)
+        if (packageReceiverRegistered) {
+            unregisterReceiver(packageRemovedReceiver)
+            packageReceiverRegistered = false
+        }
         if (batteryReceiverRegistered) {
             unregisterReceiver(batteryChangedReceiver)
             batteryReceiverRegistered = false
