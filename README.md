@@ -1,27 +1,29 @@
 # NEXA Launcher
 
-A lightweight Android home launcher designed for low-end devices.
+A lightweight Android home launcher designed for speed and everyday usability, including lower-end devices.
 
 ## Current features
 
 - Android Home launcher entry point
-- Installed app discovery using PackageManager
-- App grid backed by RecyclerView
-- Background app icon loading with an in-memory LRU cache
-- App search
+- Live clock and date dashboard
+- Installed app discovery through PackageManager
+- Responsive RecyclerView app grid
+- Background icon loading with an in-memory LRU cache
+- App search by app name or package name
+- Favorites with persistent storage
 - Recently opened apps
-- Launch apps directly from the home screen
-- Simple settings menu and app-list refresh
+- Long-press app actions for favorites, app info, and uninstall
+- Refresh installed apps
+- Shortcut to Android's default Home app settings
 - Android 8.0 (API 26) and newer
 
 ## Technology
 
 - Kotlin
-- Android Views
-- RecyclerView
+- Native Android Views
+- RecyclerView and DiffUtil
 - Android PackageManager
-- Minimum SDK 26
-- Compile SDK 35
+- Background app and icon loading
 
 ## Build
 
@@ -31,4 +33,4 @@ Use JDK 17 or newer and Android SDK Platform 35.
 gradle assembleDebug
 ```
 
-The launcher is under active development. Customization, favorites management, widgets, and further performance testing are still planned.
+NEXA is actively being developed. Wallpaper controls, icon packs, gestures, widgets, and deeper performance tuning are not implemented yet.
