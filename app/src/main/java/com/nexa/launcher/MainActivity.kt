@@ -516,12 +516,12 @@ class MainActivity : Activity() {
             setSmoothPressFeedback()
         }
         deviceTempLabel = TextView(this).apply {
-            text = localized("Device --°C")
+            text = localized("Device") + " --" + temperatureUnitSymbol()
             textSize = 12f
             setTextColor(MUTED)
         }
         outsideTempLabel = TextView(this).apply {
-            text = localized("Outside --°C")
+            text = localized("Outside") + " --" + temperatureUnitSymbol()
             textSize = 12f
             setTextColor(MUTED)
             gravity = Gravity.END
