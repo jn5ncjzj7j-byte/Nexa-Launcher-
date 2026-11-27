@@ -1114,6 +1114,96 @@ class MainActivity : Activity() {
             .show()
     }
 
+    private fun createSettingPreview(): Pair<FrameLayout, () -> Unit> {
+        val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+        val frame = FrameLayout(this).apply {
+            background = roundedBackground(prefs.getInt("background_color", BACKGROUND), 16)
+            clipToOutline = true
+        }
+        val image = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
+        frame.addView(image, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        ))
+        val overlay = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(10), dp(14), dp(10))
+            addView(TextView(this@MainActivity).apply {
+                text = "NEXA"
+                textSize = 13f
+                setTextColor(TEXT)
+                typeface = Typeface.create("sans-serif", Typeface.BOLD)
+            })
+            addView(TextView(this@MainActivity).apply {
+                text = "9:41"
+                textSize = 27f
+                setTextColor(TEXT)
+                setPadding(0, dp(8), 0, dp(3))
+            })
+            addView(TextView(this@MainActivity).apply {
+                text = "Your apps  ·  Games  ·  Tools"
+                textSize = 10f
+                setTextColor(TEXT)
+                setPadding(dp(8), dp(5), dp(8), dp(5))
+                background = roundedBackground(prefs.getInt("accent_color", ACCENT), 9)
+            })
+        }
+        frame.addView(overlay, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        ))
+        val refresh = {
+            val current = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+            frame.setBackgroundColor(current.getInt("background_color", BACKGROUND))
+            val video = current.getString("video_wallpaper_uri", null)
+            val photo = current.getString("wallpaper_uri", null)
+            val bitmap = try {
+                when {
+                    !video.isNullOrBlank() -> MediaMetadataRetriever().let { retriever ->
+                        try {
+                            retriever.setDataSource(this, Uri.parse(video))
+                            retriever.getFrameAtTime(0)
+                        } finally {
+                            retriever.release()
+                        }
+                    }
+                    !photo.isNullOrBlank() -> contentResolver.openInputStream(Uri.parse(photo))?.use {
+                        BitmapFactory.decodeStream(it)
+                    }
+                    else -> null
+                }
+            } catch (_: Exception) { null }
+            image.setImageBitmap(bitmap)
+            image.alpha = current.getInt("wallpaper_alpha", 190) / 255f
+            image.rotation = if (!video.isNullOrBlank()) current.getInt("video_rotation", 0).toFloat() else 0f
+            val fit = current.getBoolean("video_auto_fit", true)
+            image.scaleX = if (fit) 1.2f else 1f
+            image.scaleY = if (fit) 1.2f else 1f
+            image.translationX = current.getInt("video_position_x", 0) * dp(1).toFloat()
+            image.translationY = current.getInt("video_position_y", 0) * dp(1).toFloat()
+            image.scaleType = when (current.getInt("wallpaper_crop_mode", 0)) {
+                1 -> ImageView.ScaleType.FIT_CENTER
+                2 -> ImageView.ScaleType.CENTER_CROP
+                3 -> ImageView.ScaleType.CENTER_CROP
+                else -> ImageView.ScaleType.CENTER_CROP
+            }
+            overlay.getChildAt(2).background = roundedBackground(current.getInt("accent_color", ACCENT), 9)
+        }
+        frame.post { refresh() }
+        return Pair(frame, refresh)
+    }
+
+    private fun settingPanel(preview: FrameLayout): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(8), dp(18), dp(4))
+            addView(preview, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(155)
+            ).apply { bottomMargin = dp(12) })
+        }
+    }
+
     private fun showVideoTrimEditor() {
         val uriText = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
             .getString("video_wallpaper_uri", null)
@@ -1194,10 +1284,8 @@ class MainActivity : Activity() {
 
     private fun showVideoPositionOptions() {
         val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
-        val panel = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(22), dp(8), dp(22), 0)
-        }
+        val (preview, refresh) = createSettingPreview()
+        val panel = settingPanel(preview)
         fun addAxis(label: String, key: String) {
             panel.addView(TextView(this).apply {
                 text = label
@@ -1216,7 +1304,7 @@ class MainActivity : Activity() {
                             if (key == "video_position_x") it.translationX = value * resources.displayMetrics.widthPixels / 100f
                             else it.translationY = value * resources.displayMetrics.heightPixels / 100f
                         }
-                        appearancePreviewUpdater?.invoke()
+                        refresh()
                     }
                     override fun onStartTrackingTouch(seekBar: SeekBar?) {}
                     override fun onStopTrackingTouch(seekBar: SeekBar?) {}
@@ -1227,85 +1315,127 @@ class MainActivity : Activity() {
         addAxis("Vertical position", "video_position_y")
         AlertDialog.Builder(this)
             .setTitle("Video position")
-            .setMessage("Move the video behind the launcher. Changes preview immediately.")
-            .setView(panel)
+            .setView(ScrollView(this).apply { addView(panel) })
             .setPositiveButton("Done", null)
             .setNeutralButton("Reset") { _, _ ->
                 prefs.edit().putInt("video_position_x", 0).putInt("video_position_y", 0).apply()
                 applySavedAppearance()
+                refresh()
             }
             .show()
     }
 
     private fun showVideoAutoFitOptions() {
         val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
-        val enabled = prefs.getBoolean("video_auto_fit", true)
+        val (preview, refresh) = createSettingPreview()
+        val panel = settingPanel(preview)
+        arrayOf("Auto fit full screen", "Fit entire video").forEachIndexed { index, label ->
+            val row = TextView(this).apply {
+                text = label
+                textSize = 14f
+                setTextColor(TEXT)
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(12), dp(12), dp(12), dp(12))
+                background = roundedBackground(SURFACE, 10)
+                setOnClickListener {
+                    prefs.edit().putBoolean("video_auto_fit", index == 0).apply()
+                    applySavedAppearance()
+                    refresh()
+                }
+            }
+            panel.addView(row, LinearLayout.LayoutParams(-1, dp(46)).apply { bottomMargin = dp(6) })
+        }
         AlertDialog.Builder(this)
             .setTitle("Video screen fit")
-            .setMessage("Auto fit scales the video to cover the full launcher screen. Some edges may be cropped to avoid black bars, especially after rotation.")
-            .setSingleChoiceItems(arrayOf("Auto fit full screen", "Fit entire video"), if (enabled) 0 else 1) { dialog, which ->
-                prefs.edit().putBoolean("video_auto_fit", which == 0).apply()
-                applySavedAppearance()
-                appearancePreviewUpdater?.invoke()
-                dialog.dismiss()
-            }
-            .setNegativeButton("Cancel", null)
+            .setView(panel)
+            .setPositiveButton("Done", null)
             .show()
     }
 
     private fun showVideoRotationOptions() {
-        val choices = arrayOf("0°", "90°", "180°", "270°")
         val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
-        val current = (prefs.getInt("video_rotation", 0) / 90).coerceIn(0, 3)
+        val (preview, refresh) = createSettingPreview()
+        val panel = settingPanel(preview)
+        arrayOf(0, 90, 180, 270).forEach { angle ->
+            panel.addView(TextView(this).apply {
+                text = "$angle°"
+                textSize = 14f
+                setTextColor(TEXT)
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(12), dp(10), dp(12), dp(10))
+                background = roundedBackground(SURFACE, 10)
+                setOnClickListener {
+                    prefs.edit().putInt("video_rotation", angle).apply()
+                    videoWallpaper?.rotation = angle.toFloat()
+                    refresh()
+                }
+            }, LinearLayout.LayoutParams(-1, dp(44)).apply { bottomMargin = dp(5) })
+        }
         AlertDialog.Builder(this)
             .setTitle("Rotate video")
-            .setSingleChoiceItems(choices, current) { dialog, which ->
-                prefs.edit().putInt("video_rotation", which * 90).apply()
-                videoWallpaper?.rotation = (which * 90).toFloat()
-                appearancePreviewUpdater?.invoke()
-                dialog.dismiss()
-            }
-            .setNegativeButton("Cancel", null)
+            .setView(panel)
+            .setPositiveButton("Done", null)
             .show()
     }
 
     private fun showPhotoCropOptions() {
-        val choices = arrayOf("Center crop", "Fit entire photo", "Crop from top", "Crop from bottom")
         val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
-        val current = prefs.getInt("wallpaper_crop_mode", 0).coerceIn(0, 3)
+        val (preview, refresh) = createSettingPreview()
+        val panel = settingPanel(preview)
+        arrayOf("Center crop", "Fit entire photo", "Crop from top", "Crop from bottom").forEachIndexed { index, label ->
+            panel.addView(TextView(this).apply {
+                text = label
+                textSize = 14f
+                setTextColor(TEXT)
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(12), dp(10), dp(12), dp(10))
+                background = roundedBackground(SURFACE, 10)
+                setOnClickListener {
+                    prefs.edit().putInt("wallpaper_crop_mode", index).apply()
+                    applySavedAppearance()
+                    refresh()
+                }
+            }, LinearLayout.LayoutParams(-1, dp(44)).apply { bottomMargin = dp(5) })
+        }
         AlertDialog.Builder(this)
             .setTitle("Photo crop and position")
-            .setMessage("Choose how your photo fills the launcher background.")
-            .setSingleChoiceItems(choices, current) { dialog, which ->
-                prefs.edit().putInt("wallpaper_crop_mode", which).apply()
-                applySavedAppearance()
-                appearancePreviewUpdater?.invoke()
-                dialog.dismiss()
-            }
-            .setNegativeButton("Close", null)
+            .setView(panel)
+            .setPositiveButton("Done", null)
             .show()
     }
 
+
+
     private fun showCustomColor(title: String, current: Int, onSelected: (Int) -> Unit) {
+        val (preview, refresh) = createSettingPreview()
+        val panel = settingPanel(preview)
         val field = EditText(this).apply {
             hint = "#RRGGBB"
             setSingleLine(true)
             setText(String.format("#%06X", 0xFFFFFF and current))
             setTextColor(TEXT)
             setHintTextColor(MUTED)
+            addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                    try {
+                        val value = s.toString().trim()
+                        preview.setBackgroundColor(Color.parseColor(if (value.startsWith("#")) value else "#$value"))
+                    } catch (_: Exception) {}
+                }
+                override fun afterTextChanged(s: Editable?) {}
+            })
         }
-        val wrapper = LinearLayout(this).apply {
-            setPadding(dp(22), dp(8), dp(22), 0)
-            addView(field, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52)))
-        }
+        panel.addView(field, LinearLayout.LayoutParams(-1, dp(52)))
         AlertDialog.Builder(this)
             .setTitle(title)
-            .setView(wrapper)
+            .setView(panel)
             .setPositiveButton("Apply") { _, _ ->
                 try {
                     val value = field.text.toString().trim()
                     val color = Color.parseColor(if (value.startsWith("#")) value else "#$value")
                     onSelected(color)
+                    refresh()
                 } catch (_: Exception) {
                     showMessage("Enter a valid color such as #8B7CFF.")
                 }
@@ -1315,11 +1445,30 @@ class MainActivity : Activity() {
     }
 
     private fun showColorChoices(title: String, colors: List<Pair<String, Int>>, onSelected: (Int) -> Unit) {
+        val (preview, refresh) = createSettingPreview()
+        val panel = settingPanel(preview)
+        colors.forEach { (label, color) ->
+            panel.addView(TextView(this).apply {
+                text = label
+                textSize = 14f
+                setTextColor(TEXT)
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(12), dp(10), dp(12), dp(10))
+                background = roundedBackground(SURFACE, 10)
+                setOnClickListener {
+                    onSelected(color)
+                    if (title.contains("Background", true)) preview.setBackgroundColor(color)
+                    else if (title.contains("Visibility", true)) {
+                        val image = preview.getChildAt(0) as? ImageView
+                        image?.alpha = color / 255f
+                    } else refresh()
+                }
+            }, LinearLayout.LayoutParams(-1, dp(44)).apply { bottomMargin = dp(5) })
+        }
         AlertDialog.Builder(this)
             .setTitle(title)
-            .setItems(colors.map { it.first }.toTypedArray()) { _, which ->
-                onSelected(colors[which].second)
-            }
+            .setView(ScrollView(this).apply { addView(panel) })
+            .setPositiveButton("Done", null)
             .show()
     }
 
