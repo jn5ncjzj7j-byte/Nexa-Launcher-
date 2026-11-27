@@ -553,11 +553,15 @@ class MainActivity : Activity() {
 
     private fun uninstallApp(app: LauncherApp) {
         try {
-            startActivity(Intent(Intent.ACTION_DELETE).apply {
-                data = Uri.parse("package:${app.packageName}")
-            })
+            val uninstallIntent = Intent(
+                Intent.ACTION_UNINSTALL_PACKAGE,
+                Uri.parse("package:${app.packageName}")
+            ).apply {
+                putExtra(Intent.EXTRA_RETURN_RESULT, true)
+            }
+            startActivity(uninstallIntent)
         } catch (_: Exception) {
-            showMessage("This app cannot be uninstalled here.")
+            showMessage("Android could not open the uninstall screen. Try App info, then Uninstall.")
         }
     }
 
