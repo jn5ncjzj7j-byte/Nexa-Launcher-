@@ -850,7 +850,14 @@ class MainActivity : Activity() {
                             "Deep purple" to 0xFF171126.toInt(),
                             "Ocean" to 0xFF0B1722.toInt(),
                             "Forest" to 0xFF0D1A16.toInt(),
-                            "Warm charcoal" to 0xFF211A18.toInt()
+                            "Warm charcoal" to 0xFF211A18.toInt(),
+                            "Pure black" to 0xFF000000.toInt(),
+                            "Slate" to 0xFF202936.toInt(),
+                            "Rose" to 0xFF28151F.toInt(),
+                            "Amethyst" to 0xFF241638.toInt(),
+                            "Emerald" to 0xFF102820.toInt(),
+                            "Sunset" to 0xFF302016.toInt(),
+                            "Navy" to 0xFF101B35.toInt()
                         )
                     ) { color ->
                         selectedBackground = color
@@ -866,7 +873,14 @@ class MainActivity : Activity() {
                             "Cyan" to 0xFF54D6E8.toInt(),
                             "Mint" to 0xFF65D6A4.toInt(),
                             "Orange" to 0xFFFFAD66.toInt(),
-                            "Pink" to 0xFFFF82B2.toInt()
+                            "Pink" to 0xFFFF82B2.toInt(),
+                            "Blue" to 0xFF6EA8FF.toInt(),
+                            "Red" to 0xFFFF6B75.toInt(),
+                            "Gold" to 0xFFFFD166.toInt(),
+                            "Lime" to 0xFFB8E36B.toInt(),
+                            "Teal" to 0xFF42D6C5.toInt(),
+                            "Lavender" to 0xFFC5A3FF.toInt(),
+                            "White" to 0xFFE8ECF5.toInt()
                         )
                     ) { color ->
                         selectedAccent = color
