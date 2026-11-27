@@ -133,10 +133,10 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER
             setTextColor(TEXT)
             background = roundedBackground(SURFACE, 15)
-            setOnClickListener { openAndroidSettings() }
+            setOnClickListener { showSettingsScreen() }
             setSmoothPressFeedback()
             setOnLongClickListener {
-                showSettings()
+                showSettingsScreen()
                 true
             }
         }
@@ -694,46 +694,137 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun showSettings() {
-        val options = arrayOf(
-            "Customize appearance",
-            "Android Settings",
-            "Refresh apps",
-            "Manage hidden apps",
-            "Manage default home app",
-            "About NEXA"
-        )
-        AlertDialog.Builder(this)
-            .setTitle("NEXA settings")
-            .setItems(options) { _, which ->
-                when (which) {
-                    0 -> showAppearanceSettings()
-                    1 -> openAndroidSettings()
-                    2 -> loadApps()
-                    3 -> showHiddenApps()
-                    4 -> {
-                        try {
-                            startActivity(Intent(Settings.ACTION_HOME_SETTINGS))
-                        } catch (_: Exception) {
-                            showMessage("Open Android Settings and choose Default apps, then Home app.")
-                        }
-                    }
-                    5 -> AlertDialog.Builder(this)
-                        .setTitle("NEXA Launcher")
-                        .setMessage("A lightweight Android home screen focused on speed, clarity, and control. Version 0.3.0")
-                        .setPositiveButton("OK", null)
-                        .show()
-                }
+    private fun showSettingsScreen() {
+        val page = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(18), dp(20), dp(16))
+            setBackgroundColor(selectedBackground)
+        }
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val back = TextView(this).apply {
+            text = "‹"
+            textSize = 34f
+            setTextColor(TEXT)
+            gravity = Gravity.CENTER
+            background = roundedBackground(SURFACE, 15)
+            setOnClickListener { setContentView(launcherRoot) }
+            setSmoothPressFeedback()
+        }
+        header.addView(back, LinearLayout.LayoutParams(dp(48), dp(48)))
+        val heading = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), 0, 0, 0)
+        }
+        heading.addView(TextView(this).apply {
+            text = "Settings"
+            textSize = 25f
+            typeface = Typeface.create("sans-serif", Typeface.BOLD)
+            setTextColor(TEXT)
+        })
+        heading.addView(TextView(this).apply {
+            text = "Make NEXA feel like yours"
+            textSize = 12f
+            setTextColor(MUTED)
+        })
+        header.addView(heading, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        val done = TextView(this).apply {
+            text = "Done"
+            textSize = 13f
+            setTextColor(TEXT)
+            gravity = Gravity.CENTER
+            background = roundedBackground(selectedAccent, 14)
+            setPadding(dp(16), dp(10), dp(16), dp(10))
+            setOnClickListener { setContentView(launcherRoot) }
+            setSmoothPressFeedback()
+        }
+        header.addView(done)
+        page.addView(header)
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            overScrollMode = View.OVER_SCROLL_NEVER
+        }
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(22), 0, dp(20))
+        }
+        fun section(name: String, detail: String) {
+            content.addView(TextView(this).apply {
+                text = name
+                textSize = 17f
+                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                setTextColor(TEXT)
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = dp(18)
+                bottomMargin = dp(4)
+            })
+            content.addView(TextView(this).apply {
+                text = detail
+                textSize = 12f
+                setTextColor(MUTED)
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                bottomMargin = dp(10)
+            })
+        }
+        fun item(title: String, detail: String, action: () -> Unit) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                background = roundedBackground(SURFACE, 16)
+                setPadding(dp(16), dp(14), dp(16), dp(14))
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { action() }
+                setSmoothPressFeedback()
             }
-            .show()
+            row.addView(TextView(this).apply {
+                text = title
+                textSize = 14f
+                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                setTextColor(TEXT)
+            })
+            row.addView(TextView(this).apply {
+                text = detail
+                textSize = 11f
+                setTextColor(MUTED)
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = dp(4)
+            })
+            content.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                bottomMargin = dp(9)
+            })
+        }
+        section("Personalization", "Change the look, colors, and wallpaper")
+        item("Appearance studio", "Wallpapers, colors, transparency, and styles") { showAppearanceSettings() }
+        section("Launcher", "Manage your apps and home screen")
+        item("Refresh apps", "Rescan installed applications") { loadApps(); showMessage("Refreshing apps…") }
+        item("Hidden apps", "Choose which apps appear in NEXA") { showHiddenApps() }
+        item("Default home app", "Choose NEXA as your Android launcher") {
+            try {
+                startActivity(Intent(Settings.ACTION_HOME_SETTINGS))
+            } catch (_: Exception) {
+                showMessage("Open Android Settings and choose Default apps, then Home app.")
+            }
+        }
+        section("System", "Android settings and information")
+        item("Android Settings", "Open your device settings") { openAndroidSettings() }
+        item("About NEXA", "Version 0.4.0 · Lightweight Android launcher") {
+            showMessage("NEXA Launcher is designed to keep your home screen fast, smooth, and customizable.")
+        }
+        scroll.addView(content)
+        page.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        setContentView(page)
     }
-
 
     private fun showAppearanceSettings() {
         val options = arrayOf(
             "Choose wallpaper",
             "Background color",
             "Accent color",
+            "Wallpaper visibility",
+            "Custom background color",
+            "Custom accent color",
             "Remove wallpaper"
         )
         AlertDialog.Builder(this)
@@ -784,7 +875,31 @@ class MainActivity : Activity() {
                             .apply()
                         buildCategoryTabs()
                     }
-                    3 -> {
+                    3 -> showColorChoices(
+                        "Wallpaper visibility",
+                        listOf("Subtle" to 45, "Balanced" to 82, "Vivid" to 135, "Strong" to 190)
+                            .map { it.first to it.second }
+                    ) { alpha ->
+                        getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
+                            .putInt("wallpaper_alpha", alpha)
+                            .apply()
+                        applySavedAppearance()
+                    }
+                    4 -> showCustomColor("Custom background color", selectedBackground) { color ->
+                        selectedBackground = color
+                        getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
+                            .putInt("background_color", color)
+                            .apply()
+                        applySavedAppearance()
+                    }
+                    5 -> showCustomColor("Custom accent color", selectedAccent) { color ->
+                        selectedAccent = color
+                        getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
+                            .putInt("accent_color", color)
+                            .apply()
+                        buildCategoryTabs()
+                    }
+                    6 -> {
                         getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
                             .remove("wallpaper_uri")
                             .apply()
@@ -793,6 +908,34 @@ class MainActivity : Activity() {
                 }
             }
             .setNegativeButton("Close", null)
+            .show()
+    }
+
+    private fun showCustomColor(title: String, current: Int, onSelected: (Int) -> Unit) {
+        val field = EditText(this).apply {
+            hint = "#RRGGBB"
+            setSingleLine(true)
+            setText(String.format("#%06X", 0xFFFFFF and current))
+            setTextColor(TEXT)
+            setHintTextColor(MUTED)
+        }
+        val wrapper = LinearLayout(this).apply {
+            setPadding(dp(22), dp(8), dp(22), 0)
+            addView(field, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52)))
+        }
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setView(wrapper)
+            .setPositiveButton("Apply") { _, _ ->
+                try {
+                    val value = field.text.toString().trim()
+                    val color = Color.parseColor(if (value.startsWith("#")) value else "#$value")
+                    onSelected(color)
+                } catch (_: Exception) {
+                    showMessage("Enter a valid color such as #8B7CFF.")
+                }
+            }
+            .setNegativeButton("Cancel", null)
             .show()
     }
 
@@ -833,7 +976,7 @@ class MainActivity : Activity() {
                 launcherRoot.setBackgroundColor(selectedBackground)
                 return
             }
-            val image = BitmapDrawable(resources, bitmap).apply { alpha = 82 }
+            val image = BitmapDrawable(resources, bitmap).apply { alpha = prefs.getInt("wallpaper_alpha", 82) }
             launcherRoot.background = LayerDrawable(arrayOf(ColorDrawable(selectedBackground), image))
         } catch (_: Exception) {
             launcherRoot.setBackgroundColor(selectedBackground)
