@@ -454,7 +454,24 @@ class MainActivity : Activity() {
             }
         }
 
+        val playStore = ImageView(this).apply {
+            contentDescription = "Play Store"
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(dp(10), dp(10), dp(10), dp(10))
+            background = roundedBackground(SURFACE, 15)
+            try {
+                setImageDrawable(packageManager.getApplicationIcon("com.android.vending"))
+            } catch (_: Exception) {
+                setImageResource(android.R.drawable.ic_menu_search)
+            }
+            setOnClickListener { openPlayStore() }
+            setSmoothPressFeedback()
+        }
+
         top.addView(brand, LinearLayout.LayoutParams(0, dp(44), 1f))
+        top.addView(playStore, LinearLayout.LayoutParams(dp(44), dp(44)).apply {
+            rightMargin = dp(8)
+        })
         top.addView(settings, LinearLayout.LayoutParams(dp(44), dp(44)))
         launcherRoot.addView(top)
 
@@ -1227,7 +1244,8 @@ class MainActivity : Activity() {
                 .distinctBy { it.packageName }
                 .filter {
                     it.packageName != this@MainActivity.packageName &&
-                        it.packageName != "com.android.settings"
+                        it.packageName != "com.android.settings" &&
+                        it.packageName != "com.android.vending"
                 }
                 .sortedBy { it.label.lowercase(Locale.getDefault()) }
 
@@ -1724,6 +1742,19 @@ class MainActivity : Activity() {
             startActivity(uninstallIntent)
         } catch (_: Exception) {
             showMessage("Android could not open the uninstall screen. Try App info, then Uninstall.")
+        }
+    }
+
+    private fun openPlayStore() {
+        try {
+            val launchIntent = packageManager.getLaunchIntentForPackage("com.android.vending")
+            if (launchIntent != null) {
+                startActivity(launchIntent)
+            } else {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store")))
+            }
+        } catch (_: Exception) {
+            showMessage("Play Store could not be opened.")
         }
     }
 
