@@ -270,7 +270,7 @@ class MainActivity : Activity() {
             "Background" to "พื้นหลัง",
             "Visibility" to "ความโปร่งใส",
             "Unable to use that media file. Try choosing another file." to "ไม่สามารถใช้ไฟล์สื่อนี้ได้ โปรดลองเลือกไฟล์อื่น",
-            "OK" to "ตกลง"
+            "OK" to "ตกลง",\n            "Brightness" to "ความสว่าง"
         )
         return translations[value] ?: value
     }
@@ -1665,15 +1665,9 @@ class MainActivity : Activity() {
 
 
     private fun showCustomColor(title: String, current: Int, onSelected: (Int) -> Unit) {
-        val palette = listOf(
-            0xFF000000.toInt(), 0xFF202633.toInt(), 0xFF536174.toInt(), 0xFFFFFFFF.toInt(),
-            0xFFFF5252.toInt(), 0xFFFF1744.toInt(), 0xFFFF4081.toInt(), 0xFFE040FB.toInt(),
-            0xFF7C4DFF.toInt(), 0xFF651FFF.toInt(), 0xFF536DFE.toInt(), 0xFF448AFF.toInt(),
-            0xFF40C4FF.toInt(), 0xFF18FFFF.toInt(), 0xFF64FFDA.toInt(), 0xFF69F0AE.toInt(),
-            0xFFB2FF59.toInt(), 0xFFEEFF41.toInt(), 0xFFFFFF00.toInt(), 0xFFFFD740.toInt(),
-            0xFFFFAB40.toInt(), 0xFFFF6E40.toInt(), 0xFF8D6E63.toInt(), 0xFFB0BEC5.toInt()
-        )
         var selected = current
+        val hsv = FloatArray(3)
+        Color.colorToHSV(current, hsv)
         val (preview, refresh) = createSettingPreview()
         val panel = settingPanel(preview)
         val selectedLabel = TextView(this).apply {
@@ -1681,50 +1675,33 @@ class MainActivity : Activity() {
             textSize = 14f
             setTextColor(TEXT)
             gravity = Gravity.CENTER
-            setPadding(0, dp(8), 0, dp(12))
+            setPadding(0, dp(8), 0, dp(8))
         }
-        panel.addView(selectedLabel, LinearLayout.LayoutParams(-1, dp(40)))
-        val grid = GridLayout(this).apply {
-            columnCount = 4
-            useDefaultMargins = true
-            alignmentMode = GridLayout.ALIGN_BOUNDS
+        panel.addView(selectedLabel, LinearLayout.LayoutParams(-1, dp(38)))
+        val wheel = ColorWheelView(this, current) { color ->
+            selected = color
+            selectedLabel.text = String.format("#%06X", 0xFFFFFF and selected)
+            preview.setBackgroundColor(selected)
         }
-        palette.forEach { color ->
-            val swatch = TextView(this).apply {
-                text = if (color == selected) "✓" else ""
-                textSize = 20f
-                gravity = Gravity.CENTER
-                setTextColor(if (Color.luminance(color) < 0.45f) Color.WHITE else Color.BLACK)
-                background = android.graphics.drawable.GradientDrawable().apply {
-                    setColor(color)
-                    cornerRadius = dp(12).toFloat()
-                    setStroke(dp(if (color == selected) 3 else 1), if (color == selected) ACCENT else MUTED)
+        panel.addView(wheel, LinearLayout.LayoutParams(-1, dp(270)))
+        val brightnessLabel = TextView(this).apply {
+            text = localized("Brightness")
+            textSize = 12f
+            setTextColor(MUTED)
+        }
+        panel.addView(brightnessLabel)
+        val brightness = SeekBar(this).apply {
+            max = 100
+            progress = (hsv[2] * 100).toInt()
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    wheel.setBrightness(progress / 100f)
                 }
-                setOnClickListener {
-                    selected = color
-                    selectedLabel.text = String.format("#%06X", 0xFFFFFF and selected)
-                    preview.setBackgroundColor(selected)
-                    for (i in 0 until grid.childCount) {
-                        val child = grid.getChildAt(i) as TextView
-                        val childColor = palette[i]
-                        child.text = if (childColor == selected) "✓" else ""
-                        child.setTextColor(if (Color.luminance(childColor) < 0.45f) Color.WHITE else Color.BLACK)
-                        child.background = android.graphics.drawable.GradientDrawable().apply {
-                            setColor(childColor)
-                            cornerRadius = dp(12).toFloat()
-                            setStroke(dp(if (childColor == selected) 3 else 1), if (childColor == selected) ACCENT else MUTED)
-                        }
-                    }
-                }
-            }
-            grid.addView(swatch, GridLayout.LayoutParams().apply {
-                width = 0
-                height = dp(48)
-                columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
-                setMargins(dp(3), dp(3), dp(3), dp(3))
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
             })
         }
-        panel.addView(grid, LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT))
+        panel.addView(brightness, LinearLayout.LayoutParams(-1, dp(42)))
         preview.setBackgroundColor(current)
         AlertDialog.Builder(this)
             .setTitle(localized(title))
@@ -2008,6 +1985,108 @@ class MainActivity : Activity() {
         val manager = appList.layoutManager as? GridLayoutManager ?: return
         if (manager.spanCount != columns) manager.spanCount = columns
         appAdapter.updateCellWidth(widthPx / columns)
+    }
+}
+
+private class ColorWheelView(
+    context: Context,
+    initialColor: Int,
+    private val onColorChanged: (Int) -> Unit
+) : View(context) {
+    private val wheelPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+    private val overlayPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+    private val selectorPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        style = android.graphics.Paint.Style.STROKE
+        strokeWidth = context.dp(3).toFloat()
+        color = Color.WHITE
+    }
+    private val selectorShadow = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        style = android.graphics.Paint.Style.STROKE
+        strokeWidth = context.dp(5).toFloat()
+        color = Color.BLACK
+    }
+    private val hsv = FloatArray(3)
+    private var brightness = 1f
+    private var centerX = 0f
+    private var centerY = 0f
+    private var radius = 0f
+    private var selectorX = 0f
+    private var selectorY = 0f
+
+    init {
+        Color.colorToHSV(initialColor, hsv)
+        brightness = hsv[2]
+        updateSelector()
+        isFocusable = true
+        contentDescription = "Color wheel"
+    }
+
+    fun setBrightness(value: Float) {
+        brightness = value.coerceIn(0.05f, 1f)
+        hsv[2] = brightness
+        updateSelector()
+        invalidate()
+        onColorChanged(Color.HSVToColor(hsv))
+    }
+
+    private fun updateSelector() {
+        val angle = Math.toRadians(hsv[0].toDouble())
+        val distance = radius * hsv[1]
+        selectorX = centerX + kotlin.math.cos(angle).toFloat() * distance
+        selectorY = centerY + kotlin.math.sin(angle).toFloat() * distance
+    }
+
+    override fun onDraw(canvas: android.graphics.Canvas) {
+        super.onDraw(canvas)
+        centerX = width / 2f
+        centerY = height / 2f
+        radius = (minOf(width, height) / 2f - context.dp(18)).coerceAtLeast(1f)
+        val colors = IntArray(361) { index ->
+            Color.HSVToColor(floatArrayOf((index % 360).toFloat(), 1f, brightness))
+        }
+        val positions = FloatArray(361) { it / 360f }
+        wheelPaint.shader = android.graphics.SweepGradient(centerX, centerY, colors, positions)
+        canvas.drawCircle(centerX, centerY, radius, wheelPaint)
+        overlayPaint.shader = android.graphics.RadialGradient(
+            centerX, centerY, radius,
+            intArrayOf(Color.WHITE, Color.TRANSPARENT),
+            floatArrayOf(0f, 1f),
+            android.graphics.Shader.TileMode.CLAMP
+        )
+        canvas.drawCircle(centerX, centerY, radius, overlayPaint)
+        wheelPaint.shader = null
+        overlayPaint.shader = null
+        updateSelector()
+        canvas.drawCircle(selectorX, selectorY, context.dp(9).toFloat(), selectorShadow)
+        canvas.drawCircle(selectorX, selectorY, context.dp(9).toFloat(), selectorPaint)
+    }
+
+    override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
+        when (event.actionMasked) {
+            android.view.MotionEvent.ACTION_DOWN, android.view.MotionEvent.ACTION_MOVE -> {
+                val dx = event.x - centerX
+                val dy = event.y - centerY
+                val distance = kotlin.math.sqrt(dx * dx + dy * dy)
+                hsv[0] = ((Math.toDegrees(kotlin.math.atan2(dy.toDouble(), dx.toDouble())) + 360.0) % 360.0).toFloat()
+                hsv[1] = (distance / radius.coerceAtLeast(1f)).coerceIn(0f, 1f)
+                hsv[2] = brightness
+                updateSelector()
+                invalidate()
+                onColorChanged(Color.HSVToColor(hsv))
+                return true
+            }
+            android.view.MotionEvent.ACTION_UP -> {
+                performClick()
+                return true
+            }
+            android.view.MotionEvent.ACTION_CANCEL -> return true
+        }
+        return true
+    }
+
+    override fun performClick(): Boolean {
+        super.performClick()
+        return true
     }
 }
 
