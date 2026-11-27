@@ -73,6 +73,7 @@ class MainActivity : Activity() {
     private lateinit var launcherRoot: LinearLayout
     private lateinit var screenRoot: FrameLayout
     private var videoWallpaper: VideoView? = null
+    private var appearancePreviewUpdater: (() -> Unit)? = null
     private val videoTrimTick = object : Runnable {
         override fun run() {
             val player = videoWallpaper ?: return
@@ -1100,6 +1101,7 @@ class MainActivity : Activity() {
                 dp(46)
             ).apply { bottomMargin = dp(6) })
         }
+        appearancePreviewUpdater = { refreshPreview() }
         refreshPreview()
         val scroll = ScrollView(this).apply {
             isFillViewport = false
@@ -1183,6 +1185,7 @@ class MainActivity : Activity() {
             .setSingleChoiceItems(arrayOf("Loop continuously", "Play once"), if (loop) 0 else 1) { dialog, which ->
                 prefs.edit().putBoolean("video_loop", which == 0).apply()
                 applySavedAppearance()
+                appearancePreviewUpdater?.invoke()
                 dialog.dismiss()
             }
             .setNegativeButton("Cancel", null)
@@ -1213,6 +1216,7 @@ class MainActivity : Activity() {
                             if (key == "video_position_x") it.translationX = value * resources.displayMetrics.widthPixels / 100f
                             else it.translationY = value * resources.displayMetrics.heightPixels / 100f
                         }
+                        appearancePreviewUpdater?.invoke()
                     }
                     override fun onStartTrackingTouch(seekBar: SeekBar?) {}
                     override fun onStopTrackingTouch(seekBar: SeekBar?) {}
@@ -1242,6 +1246,7 @@ class MainActivity : Activity() {
             .setSingleChoiceItems(arrayOf("Auto fit full screen", "Fit entire video"), if (enabled) 0 else 1) { dialog, which ->
                 prefs.edit().putBoolean("video_auto_fit", which == 0).apply()
                 applySavedAppearance()
+                appearancePreviewUpdater?.invoke()
                 dialog.dismiss()
             }
             .setNegativeButton("Cancel", null)
@@ -1257,6 +1262,7 @@ class MainActivity : Activity() {
             .setSingleChoiceItems(choices, current) { dialog, which ->
                 prefs.edit().putInt("video_rotation", which * 90).apply()
                 videoWallpaper?.rotation = (which * 90).toFloat()
+                appearancePreviewUpdater?.invoke()
                 dialog.dismiss()
             }
             .setNegativeButton("Cancel", null)
@@ -1273,6 +1279,7 @@ class MainActivity : Activity() {
             .setSingleChoiceItems(choices, current) { dialog, which ->
                 prefs.edit().putInt("wallpaper_crop_mode", which).apply()
                 applySavedAppearance()
+                appearancePreviewUpdater?.invoke()
                 dialog.dismiss()
             }
             .setNegativeButton("Close", null)
