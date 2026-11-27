@@ -200,6 +200,10 @@ class MainActivity : Activity() {
             "Choose 12-hour AM/PM or 24-hour time" to "เลือกรูปแบบเวลา 12 ชั่วโมง AM/PM หรือ 24 ชั่วโมง",
             "12-hour (AM/PM)" to "12 ชั่วโมง (AM/PM)",
             "24-hour" to "24 ชั่วโมง",
+            "Show seconds on clock" to "แสดงวินาทีบนนาฬิกา",
+            "Display seconds alongside the time" to "แสดงวินาทีพร้อมกับเวลา",
+            "Off" to "ปิด",
+            "On" to "เปิด",
             "Adjust how NEXA fills your device screen" to "ปรับการแสดงผล NEXA ให้พอดีกับหน้าจอ",
             "Screen fit" to "การปรับขนาดหน้าจอ",
             "Use the full display area and remove unused top and bottom space" to "ใช้พื้นที่หน้าจอทั้งหมดและตัดพื้นที่ว่างด้านบนและล่าง",
@@ -368,7 +372,9 @@ class MainActivity : Activity() {
         override fun run() {
             if (::clock.isInitialized) {
                 val use24Hour = getSharedPreferences("nexa_launcher", MODE_PRIVATE).getBoolean("clock_24_hour", false)
-                val currentTime = SimpleDateFormat(if (use24Hour) "HH:mm" else "h:mm a", Locale.getDefault()).format(Date())
+                val showSeconds = getSharedPreferences("nexa_launcher", MODE_PRIVATE).getBoolean("clock_show_seconds", false)
+                val timePattern = if (use24Hour) { if (showSeconds) "HH:mm:ss" else "HH:mm" } else { if (showSeconds) "h:mm:ss a" else "h:mm a" }
+                val currentTime = SimpleDateFormat(timePattern, Locale.getDefault()).format(Date())
                 if (lastClockText.isEmpty()) {
                     clock.text = currentTime
                 } else if (lastClockText != currentTime) {
@@ -1827,6 +1833,21 @@ class MainActivity : Activity() {
                 .setNegativeButton(localized("Cancel"), null)
                 .show()
         }
+        item("Show seconds on clock", "Display seconds alongside the time") {
+            val prefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+            val enabled = prefs.getBoolean("clock_show_seconds", false)
+            val choices = arrayOf(localized("Off"), localized("On"))
+            AlertDialog.Builder(this)
+                .setTitle(localized("Show seconds on clock"))
+                .setSingleChoiceItems(choices, if (enabled) 1 else 0) { dialog, which ->
+                    prefs.edit().putBoolean("clock_show_seconds", which == 1).apply()
+                    lastClockText = ""
+                    clockTick.run()
+                    dialog.dismiss()
+                }
+                .setNegativeButton(localized("Cancel"), null)
+                .show()
+        }
         item("Screen fit", "Use the full display area and remove unused top and bottom space") {
             val choices = arrayOf("Full screen", "System safe area").map(::localized).toTypedArray()
             val current = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
@@ -1895,7 +1916,11 @@ class MainActivity : Activity() {
         })
         previewOverlay.addView(TextView(this).apply {
             text = SimpleDateFormat(
-                if (prefs.getBoolean("clock_24_hour", false)) "HH:mm" else "h:mm a",
+                if (prefs.getBoolean("clock_24_hour", false)) {
+                    if (prefs.getBoolean("clock_show_seconds", false)) "HH:mm:ss" else "HH:mm"
+                } else {
+                    if (prefs.getBoolean("clock_show_seconds", false)) "h:mm:ss a" else "h:mm a"
+                },
                 Locale.getDefault()
             ).format(Date())
             textSize = 27f
