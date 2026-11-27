@@ -296,6 +296,8 @@ class MainActivity : Activity() {
             "OK" to "ตกลง",
             "Brightness" to "ความสว่าง",
             "Device --°C" to "อุณหภูมิอุปกรณ์ --°C",
+            "Device" to "อุปกรณ์",
+            "Outside" to "ภายนอก",
             "Outside --°C" to "ภายนอก --°C",
             "Outside unavailable" to "ไม่สามารถรับอุณหภูมิภายนอกได้",
             "Outside · set location" to "ภายนอก · ตั้งค่าตำแหน่ง",
@@ -695,7 +697,7 @@ class MainActivity : Activity() {
         if (rawTemperature != Int.MIN_VALUE && rawTemperature > 0) {
             val temperature = rawTemperature / 10f
             if (lastDeviceTemperature.isNaN() || kotlin.math.abs(temperature - lastDeviceTemperature) >= 0.1f) {
-                deviceTempLabel.text = "Device " + String.format(Locale.getDefault(), "%.1f", temperature) + "°C"
+                deviceTempLabel.text = localized("Device") + " " + String.format(Locale.getDefault(), "%.1f", temperature) + "°C"
                 lastDeviceTemperature = temperature
             }
         } else {
@@ -905,7 +907,7 @@ class MainActivity : Activity() {
             val temperature = requestWeather(latitude, longitude)
             runOnUiThread {
                 weatherRequestRunning = false
-                outsideTempLabel.text = if (temperature != null) "Outside " + temperature + "°C" else localized("Outside unavailable")
+                outsideTempLabel.text = if (temperature != null) localized("Outside") + " " + temperature + "°C" else localized("Outside unavailable")
             }
         }
     }
@@ -920,7 +922,7 @@ class MainActivity : Activity() {
             val name = first.optString("name", city)
             val country = first.optString("country", "")
             val temperature = requestWeather(first.getDouble("latitude"), first.getDouble("longitude")) ?: return null
-            "Outside " + temperature + "°C · " + if (country.isBlank()) name else name + ", " + country
+            localized("Outside") + " " + temperature + "°C · " + if (country.isBlank()) name else name + ", " + country
         } catch (_: Exception) {
             null
         }
