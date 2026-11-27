@@ -297,21 +297,24 @@ class MainActivity : Activity() {
             addDataScheme("package")
         }
         val batteryFilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
-        val packageIntent: Intent?
-        val batteryIntent: Intent?
-        if (Build.VERSION.SDK_INT >= 33) {
-            packageIntent = registerReceiver(packageRemovedReceiver, packageFilter, Context.RECEIVER_NOT_EXPORTED)
-            packageReceiverRegistered = true
-            batteryIntent = registerReceiver(batteryChangedReceiver, batteryFilter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            @Suppress("DEPRECATION")
-            run {
-                packageIntent = registerReceiver(packageRemovedReceiver, packageFilter)
+        val batteryIntent = try {
+            if (Build.VERSION.SDK_INT >= 33) {
+                registerReceiver(packageRemovedReceiver, packageFilter, Context.RECEIVER_NOT_EXPORTED)
                 packageReceiverRegistered = true
-                batteryIntent = registerReceiver(batteryChangedReceiver, batteryFilter)
+                registerReceiver(batteryChangedReceiver, batteryFilter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("DEPRECATION")
+                registerReceiver(packageRemovedReceiver, packageFilter).also {
+                    packageReceiverRegistered = true
+                }
+                @Suppress("DEPRECATION")
+                registerReceiver(batteryChangedReceiver, batteryFilter)
+            }.also {
+                batteryReceiverRegistered = true
             }
+        } catch (_: Exception) {
+            null
         }
-        batteryReceiverRegistered = true
         updateBatteryStatus(batteryIntent)
 
         clockTick.run()
