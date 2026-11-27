@@ -125,7 +125,7 @@ class MainActivity : Activity() {
         val language = resources.configuration.locales[0].language
         if (language != "th") return value
         val translations = mapOf(
-            "Today" to "วันนี้",
+            localized("Today") to "วันนี้",
             "Battery --%" to "แบตเตอรี่ --%",
             "Battery" to "แบตเตอรี่",
             "Search apps" to "ค้นหาแอป",
@@ -651,9 +651,9 @@ class MainActivity : Activity() {
         }
         appAdapter.submitList(filtered, animate)
         appCount.text = if (query.isBlank()) {
-            "${filtered.size} ${localized("apps")}"
+            "\${filtered.size} \${localized("apps")}"
         } else {
-            "${filtered.size} ${localized("results")}"
+            "\${filtered.size} \${localized("results")}"
         }
     }
 
@@ -1610,7 +1610,7 @@ class MainActivity : Activity() {
         }
         panel.addView(field, LinearLayout.LayoutParams(-1, dp(52)))
         AlertDialog.Builder(this)
-            .setTitle(title)
+            .setTitle(localized(title))
             .setView(panel)
             .setPositiveButton(localized("Apply")) { _, _ ->
                 try {
@@ -1708,10 +1708,12 @@ class MainActivity : Activity() {
                     }
                 }
                 setOnCompletionListener {
-                    val loopEnabled = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
-                        .getBoolean("video_loop", true)
-                    if (loopEnabled && endAt > startAt) {
-                        seekTo(startAt)
+                    val loopPrefs = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+                    val loopEnabled = loopPrefs.getBoolean("video_loop", true)
+                    val loopStart = loopPrefs.getInt("video_trim_start", 0)
+                    val loopEnd = loopPrefs.getInt("video_trim_end", 0)
+                    if (loopEnabled && loopEnd > loopStart) {
+                        seekTo(loopStart)
                         postDelayed({
                             if (videoWallpaper === this@apply && activityResumed && !isFinishing && !isDestroyed) {
                                 start()
