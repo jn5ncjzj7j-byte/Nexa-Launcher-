@@ -1447,6 +1447,11 @@ class MainActivity : Activity() {
                     applySavedAppearance()
                 }
             }
+            .setNeutralButton(localized("Use full video")) { _, _ ->
+                prefs.edit().remove("video_trim_start").remove("video_trim_end").apply()
+                applySavedAppearance()
+                appearancePreviewUpdater?.invoke()
+            }
             .setNegativeButton(localized("Cancel"), null)
             .show()
     }
