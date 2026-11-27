@@ -358,7 +358,9 @@ class MainActivity : Activity() {
             View.SYSTEM_UI_FLAG_FULLSCREEN or
                 View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
                 View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
             )
     }
 
@@ -797,6 +799,25 @@ class MainActivity : Activity() {
         }
         section("Personalization", "Change the look, colors, and wallpaper")
         item("Appearance studio", "Wallpapers, colors, transparency, and styles") { showAppearanceSettings() }
+        section("Display", "Adjust how NEXA fills your device screen")
+        item("Screen fit", "Use the full display area and remove unused top and bottom space") {
+            val choices = arrayOf("Full screen", "System safe area")
+            val current = getSharedPreferences("nexa_launcher", MODE_PRIVATE)
+                .getBoolean("full_screen_layout", true)
+            AlertDialog.Builder(this)
+                .setTitle("Screen fit")
+                .setSingleChoiceItems(choices, if (current) 0 else 1) { dialog, which ->
+                    getSharedPreferences("nexa_launcher", MODE_PRIVATE).edit()
+                        .putBoolean("full_screen_layout", which == 0)
+                        .apply()
+                    hideSystemBars()
+                    setContentView(launcherRoot)
+                    window.decorView.post { hideSystemBars() }
+                    dialog.dismiss()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
         section("Launcher", "Manage your apps and home screen")
         item("Refresh apps", "Rescan installed applications") { loadApps(); showMessage("Refreshing apps…") }
         item("Hidden apps", "Choose which apps appear in NEXA") { showHiddenApps() }
